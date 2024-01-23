@@ -31,7 +31,7 @@ namespace fastdx {
     typedef std::shared_ptr <ID3D12GraphicsCommandList6> ID3D12GraphicsCommandListPtr;
     typedef std::shared_ptr<ID3D12DescriptorHeap> ID3D12DescriptorHeapPtr;
     typedef std::shared_ptr<ID3D12CommandQueue> ID3D12CommandQueuePtr;
-    typedef std::shared_ptr<IDXGISwapChain3> IDXGISwapChain3Ptr;
+    typedef std::shared_ptr<IDXGISwapChain3> IDXGISwapChainPtr;
 
     class D3D12DeviceWrapper;
     typedef std::shared_ptr<D3D12DeviceWrapper> D3D12DeviceWrapperPtr;
@@ -55,14 +55,23 @@ namespace fastdx {
             _device(device) {}
 
         ID3D12CommandQueuePtr createCommandQueue(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult = nullptr);
-        IDXGISwapChain3Ptr createWindowSwapChain(ID3D12CommandQueuePtr commandQueue, DXGI_FORMAT format, HRESULT* outResult = nullptr);
-        ID3D12DescriptorHeapPtr createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType, HRESULT* outResult = nullptr);
 
-        ID3D12CommandAllocatorPtr createCommandAllocator(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult = nullptr);
-        ID3D12GraphicsCommandListPtr createCommandList(uint32_t nodeMask, D3D12_COMMAND_LIST_TYPE type,
+        IDXGISwapChainPtr createWindowSwapChain(ID3D12CommandQueuePtr commandQueue, uint32_t bufferCount, DXGI_FORMAT format,
+            HRESULT* outResult = nullptr);
+        IDXGISwapChainPtr createWindowSwapChain(ID3D12CommandQueuePtr commandQueue,DXGI_SWAP_CHAIN_DESC1 swapChainDesc,
+            HWND hwnd, HRESULT* outResult = nullptr);
+
+        ID3D12DescriptorHeapPtr createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
+            HRESULT* outResult = nullptr);
+
+        ID3D12CommandAllocatorPtr createCommandAllocator(D3D12_COMMAND_LIST_TYPE commandType,
+            HRESULT* outResult = nullptr);
+
+        ID3D12GraphicsCommandListPtr createCommandList(uint32_t nodeMask, D3D12_COMMAND_LIST_TYPE commandType,
             ID3D12CommandAllocatorPtr allocator, HRESULT* outResult = nullptr);
 
-        void createRenderTargetViews(IDXGISwapChain3Ptr swapChain, ID3D12DescriptorHeapPtr heap, HRESULT* outResult = nullptr);
+        void createRenderTargetViews(IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap,
+            HRESULT* outResult = nullptr);
 
     private:
         ID3D12DevicePtr _device;

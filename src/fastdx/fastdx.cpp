@@ -108,22 +108,12 @@ ID3D12CommandQueuePtr D3D12DeviceWrapper::createCommandQueue(D3D12_COMMAND_LIST_
 }
 
 
-IDXGISwapChain3Ptr D3D12DeviceWrapper::createWindowSwapChain(ID3D12CommandQueuePtr commandQueue, DXGI_FORMAT format, HRESULT* outResult) {
+IDXGISwapChainPtr D3D12DeviceWrapper::createWindowSwapChain(ID3D12CommandQueuePtr commandQueue,
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc, HWND hwnd, HRESULT* outResult) {
+
     HRESULT hr;
     std::shared_ptr<IDXGIFactory4> dxgiFactory = getOrCreateDXIG(&hr);
     CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-
-    RECT windowRect;
-    GetWindowRect(hwnd, &windowRect);
-
-    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-    swapChainDesc.BufferCount = 3; // Tripple Buffering
-    swapChainDesc.Width = windowRect.right -windowRect.left;
-    swapChainDesc.Height = windowRect.bottom -windowRect.top;
-    swapChainDesc.Format = format;
-    swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    swapChainDesc.SampleDesc.Count = 1;
 
     ComPtr<IDXGISwapChain1> swapChain1;
     hr = dxgiFactory->CreateSwapChainForHwnd(
@@ -143,9 +133,27 @@ IDXGISwapChain3Ptr D3D12DeviceWrapper::createWindowSwapChain(ID3D12CommandQueueP
     hr = swapChain1.As(&swapChain3);
 
     CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-    return IDXGISwapChain3Ptr(swapChain3.Detach(), PtrDeleter());
+    return IDXGISwapChainPtr(swapChain3.Detach(), PtrDeleter());
 }
 
+
+IDXGISwapChainPtr D3D12DeviceWrapper::createWindowSwapChain(ID3D12CommandQueuePtr commandQueue, 
+    uint32_t bufferCount, DXGI_FORMAT format, HRESULT* outResult) {
+
+    RECT windowRect;
+    GetWindowRect(hwnd, &windowRect);
+
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+    swapChainDesc.BufferCount = bufferCount; // Tripple Buffering
+    swapChainDesc.Width = windowRect.right - windowRect.left;
+    swapChainDesc.Height = windowRect.bottom - windowRect.top;
+    swapChainDesc.Format = format;
+    swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    swapChainDesc.SampleDesc.Count = 1;
+
+    return createWindowSwapChain(commandQueue, swapChainDesc, fastdx::hwnd, outResult);
+}
 
 ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType, HRESULT* outResult) {
 
@@ -191,7 +199,7 @@ ID3D12GraphicsCommandListPtr D3D12DeviceWrapper::createCommandList(uint32_t node
 }
 
 
-void D3D12DeviceWrapper::createRenderTargetViews(IDXGISwapChain3Ptr swapChain, ID3D12DescriptorHeapPtr heap, HRESULT* outResult) {
+void D3D12DeviceWrapper::createRenderTargetViews(IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap, HRESULT* outResult) {
 
     HRESULT hr;
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
