@@ -89,7 +89,7 @@ D3D12DeviceWrapperPtr fastdx::createDevice(D3D_FEATURE_LEVEL featureLevel, HRESU
         }
     }
     CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-    
+
     auto devicePtr = std::shared_ptr<ID3D12Device2>(device, PtrDeleter());
     return D3D12DeviceWrapperPtr(new D3D12DeviceWrapper(devicePtr));
 }
@@ -165,6 +165,29 @@ ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, 
 
     CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
     return ID3D12DescriptorHeapPtr(heapDescriptor.Detach(), PtrDeleter());
+}
+
+
+ID3D12CommandAllocatorPtr D3D12DeviceWrapper::createCommandAllocator(D3D12_COMMAND_LIST_TYPE commandType, HRESULT* outResult) {
+
+    HRESULT hr;
+    ComPtr<ID3D12CommandAllocator> commandAllocator;
+    hr = _device->CreateCommandAllocator(commandType, IID_PPV_ARGS(&commandAllocator));
+
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return ID3D12CommandAllocatorPtr(commandAllocator.Detach(), PtrDeleter());
+}
+
+
+ID3D12GraphicsCommandListPtr D3D12DeviceWrapper::createCommandList(uint32_t nodeMask, D3D12_COMMAND_LIST_TYPE commandType,
+    ID3D12CommandAllocatorPtr allocator, HRESULT* outResult) {
+
+    HRESULT hr;
+    ComPtr<ID3D12GraphicsCommandList6> commandList;
+    hr = _device->CreateCommandList(nodeMask, commandType, allocator.get(), nullptr, IID_PPV_ARGS(&commandList));
+
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return ID3D12GraphicsCommandListPtr(commandList.Detach(), PtrDeleter());
 }
 
 
