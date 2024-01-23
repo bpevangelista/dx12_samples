@@ -1,31 +1,24 @@
 #include "fastdx.h"
+
+#include <chrono>
+#include <dxgidebug.h>
+#include <wrl.h> // Windows Runtime Library
+
+using namespace std::chrono;
 using namespace fastdx;
 using namespace Microsoft::WRL;
 
-#ifndef SAFE_RELEASE
-#define SAFE_RELEASE(p)      { if (p) { (p)->Release(); (p)=nullptr; } }
+#ifndef CHECK_ASSIGN_RETURN_IF_FAILED_
+#define CHECK_ASSIGN_RETURN_IF_FAILED_(HRESULTVAR, OUTVAR) { if (_checkFailedAndAssign(HRESULTVAR, OUTVAR)) { return; } }
 #endif
 
-#ifndef RETURN_FAILED_VOID
-#define RETURN_FAILED_VOID(HRESULTVAR, OUTVAR) { if (_checkFailedAndAssign(HRESULTVAR, OUTVAR)) { return; } }
+#ifndef CHECK_ASSIGN_RETURN_IF_FAILED
+#define CHECK_ASSIGN_RETURN_IF_FAILED(HRESULTVAR, OUTVAR) { if (_checkFailedAndAssign(HRESULTVAR, OUTVAR)) { return nullptr; } }
 #endif
 
-#ifndef RETURN_FAILED
-#define RETURN_FAILED(HRESULTVAR, OUTVAR) { if (_checkFailedAndAssign(HRESULTVAR, OUTVAR)) { return nullptr; } }
-#endif
-
-#ifndef HRESULT_OK
-#define HRESULT_OK(OUTVAR) { if (OUTVAR) { *(OUTVAR) = S_OK; } }
-#endif
-
-struct ComReleaser {
-    void operator() (IUnknown* ptr) {
-        SAFE_RELEASE(ptr);
-    }
-};
 
 bool _checkFailedAndAssign(HRESULT hr, HRESULT* outResult) {
-    if (FAILED(hr) && outResult != nullptr) {
+    if (outResult != nullptr) {
         *outResult = hr;
     }
     return FAILED(hr);
@@ -33,23 +26,34 @@ bool _checkFailedAndAssign(HRESULT hr, HRESULT* outResult) {
 
 namespace fastdx {
     HWND hwnd = nullptr;
-    std::shared_ptr<IDXGIFactory4> _dxgiFactory;
+    std::shared_ptr<IDXGIFactory4> _dxgiFactory = nullptr;
 };
 
 
 std::shared_ptr<IDXGIFactory4> getOrCreateDXIG(HRESULT* outResult) {
     if (_dxgiFactory) {
-        HRESULT_OK(outResult)
+        if (outResult) {
+            *outResult = S_OK;
+        }
         return _dxgiFactory;
     }
 
     uint32_t dxgiFactoryFlags = 0;
 
 #if defined(_DEBUG)
-    ComPtr<ID3D12Debug> debugController;
+    ComPtr<ID3D12Debug1> debugController;
     if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
         debugController->EnableDebugLayer();
+        debugController->SetEnableGPUBasedValidation(true);
+        debugController->SetEnableSynchronizedCommandQueueValidation(true);
+
         dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+
+        ComPtr<IDXGIInfoQueue> dxgiInfoQueue;
+        if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiInfoQueue)))) {
+            dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
+            dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
+        }
     }
 #endif
 
@@ -57,16 +61,16 @@ std::shared_ptr<IDXGIFactory4> getOrCreateDXIG(HRESULT* outResult) {
     ComPtr<IDXGIFactory4> dxgiFactory;
     hr = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&dxgiFactory));
     if (SUCCEEDED(hr)) {
-        _dxgiFactory = std::shared_ptr<IDXGIFactory4>(dxgiFactory.Detach(), ComReleaser());
+        _dxgiFactory = std::shared_ptr<IDXGIFactory4>(dxgiFactory.Detach(), PtrDeleter());
     }
 
-    HRESULT_OK(outResult)
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult)
     return _dxgiFactory;
 }
 
 
-ID3D12Device2Ptr fastdx::createDevice(D3D_FEATURE_LEVEL featureLevel, HRESULT* outResult) {
-    HRESULT hr;
+D3D12DeviceWrapperPtr fastdx::createDevice(D3D_FEATURE_LEVEL featureLevel, HRESULT* outResult) {
+    HRESULT hr = E_FAIL;
     std::shared_ptr<IDXGIFactory4> dxgiFactory = getOrCreateDXIG(&hr);
 
     ID3D12Device2* device = nullptr;
@@ -79,34 +83,35 @@ ID3D12Device2Ptr fastdx::createDevice(D3D_FEATURE_LEVEL featureLevel, HRESULT* o
             continue;
         }
 
-        HRESULT hr = D3D12CreateDevice(hardwareAdapter.Get(), featureLevel, IID_PPV_ARGS(&device));
+        hr = D3D12CreateDevice(hardwareAdapter.Get(), featureLevel, IID_PPV_ARGS(&device));
         if (SUCCEEDED(hr)) {
             break;
         }
     }
-
-    HRESULT_OK(outResult);
-    return ID3D12Device2Ptr(device, ComReleaser());
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    
+    auto devicePtr = std::shared_ptr<ID3D12Device2>(device, PtrDeleter());
+    return D3D12DeviceWrapperPtr(new D3D12DeviceWrapper(devicePtr));
 }
 
 
-ID3D12CommandQueuePtr fastdx::createCommandQueue(ID3D12Device2Ptr device, D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult) {
+ID3D12CommandQueuePtr D3D12DeviceWrapper::createCommandQueue(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult) {
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     queueDesc.Type = type;
 
     ID3D12CommandQueue* commandQueue = nullptr;
-    HRESULT hr = device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue));
-    RETURN_FAILED(hr, outResult);
+    HRESULT hr = _device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue));
 
-    return ID3D12CommandQueuePtr(commandQueue, ComReleaser());
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return ID3D12CommandQueuePtr(commandQueue, PtrDeleter());
 }
 
 
-IDXGISwapChain3Ptr fastdx::createWindowSwapChain(ID3D12Device2Ptr device, ID3D12CommandQueuePtr commandQueue, DXGI_FORMAT format, HRESULT* outResult) {
+IDXGISwapChain3Ptr D3D12DeviceWrapper::createWindowSwapChain(ID3D12CommandQueuePtr commandQueue, DXGI_FORMAT format, HRESULT* outResult) {
     HRESULT hr;
     std::shared_ptr<IDXGIFactory4> dxgiFactory = getOrCreateDXIG(&hr);
-    RETURN_FAILED(hr, outResult);
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
 
     RECT windowRect;
     GetWindowRect(hwnd, &windowRect);
@@ -129,22 +134,20 @@ IDXGISwapChain3Ptr fastdx::createWindowSwapChain(ID3D12Device2Ptr device, ID3D12
         nullptr,
         &swapChain1
     );
-    RETURN_FAILED(hr, outResult);
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
 
     hr = dxgiFactory->MakeWindowAssociation(hwnd, 0);
-    RETURN_FAILED(hr, outResult);
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
 
     ComPtr<IDXGISwapChain3> swapChain3;
     hr = swapChain1.As(&swapChain3);
-    RETURN_FAILED(hr, outResult);
 
-    HRESULT_OK(outResult);
-    return IDXGISwapChain3Ptr(swapChain3.Detach(), ComReleaser());
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return IDXGISwapChain3Ptr(swapChain3.Detach(), PtrDeleter());
 }
 
 
-ID3D12DescriptorHeapPtr fastdx::createHeapDescriptor(ID3D12Device2Ptr device,
-    int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType, HRESULT* outResult) {
+ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType, HRESULT* outResult) {
 
     D3D12_DESCRIPTOR_HEAP_FLAGS heapFlags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     if (heapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || heapType == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER) {
@@ -158,30 +161,29 @@ ID3D12DescriptorHeapPtr fastdx::createHeapDescriptor(ID3D12Device2Ptr device,
 
     HRESULT hr;
     ComPtr<ID3D12DescriptorHeap> heapDescriptor;
-    hr = device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&heapDescriptor));
-    RETURN_FAILED(hr, outResult);
+    hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&heapDescriptor));
 
-    return ID3D12DescriptorHeapPtr(heapDescriptor.Detach(), ComReleaser());
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return ID3D12DescriptorHeapPtr(heapDescriptor.Detach(), PtrDeleter());
 }
 
 
-void fastdx::createRenderTargetViews(ID3D12Device2Ptr device,
-    IDXGISwapChain3Ptr swapChain, ID3D12DescriptorHeapPtr heap, HRESULT* outResult) {
+void D3D12DeviceWrapper::createRenderTargetViews(IDXGISwapChain3Ptr swapChain, ID3D12DescriptorHeapPtr heap, HRESULT* outResult) {
 
     HRESULT hr;
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
     hr = swapChain->GetDesc1(&swapChainDesc);
-    RETURN_FAILED_VOID(hr, outResult);
+    CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult);
 
     D3D12_CPU_DESCRIPTOR_HANDLE heapHandle = heap->GetCPUDescriptorHandleForHeapStart();
-    size_t heapDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    size_t heapDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
     ComPtr<ID3D12Resource> renderTarget;
     for (uint32_t i = 0; i < swapChainDesc.BufferCount; ++i) {
         hr = swapChain->GetBuffer(i++, IID_PPV_ARGS(&renderTarget));
-        RETURN_FAILED_VOID(hr, outResult);
+        CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult);
 
-        device->CreateRenderTargetView(renderTarget.Get(), nullptr, heapHandle);
+        _device->CreateRenderTargetView(renderTarget.Get(), nullptr, heapHandle);
         heapHandle.ptr += heapDescriptorSize;
     }
 }
@@ -196,6 +198,7 @@ LRESULT CALLBACK WindowProcKeyDown(HWND hWnd, WPARAM wParam, LPARAM lParam) {
 
     return S_OK;
 }
+
 
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
@@ -216,6 +219,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
+
 
 HRESULT fastdx::createWindow(const WindowProperties& properties, HWND* optOutWindow) {
     HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(nullptr);
@@ -258,12 +262,36 @@ HRESULT fastdx::createWindow(const WindowProperties& properties, HWND* optOutWin
     return S_OK;
 }
 
-HRESULT fastdx::runMainLoop() {
+
+HRESULT fastdx::runMainLoop(std::function<void(double)> updateFunction, std::function<void()> drawFunction) {
     MSG msg = {};
+    const double kDesiredUpdateTimeMs = 1.0 / 60.0;
+    double remainingElapsedTimeMs = 0.0;
+
     while (msg.message != WM_QUIT) {
         if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
+        }
+
+        static high_resolution_clock::time_point lastClockTime = high_resolution_clock::now();
+        high_resolution_clock::time_point currentClockTime = high_resolution_clock::now();
+
+        double elapsedTimeMs = duration<double, std::milli>(currentClockTime - lastClockTime).count();
+        elapsedTimeMs += remainingElapsedTimeMs;
+        lastClockTime = currentClockTime;
+
+        if (updateFunction) {
+            int updateCycles = (int)(elapsedTimeMs / kDesiredUpdateTimeMs);
+            remainingElapsedTimeMs = max(0.0, elapsedTimeMs - updateCycles * kDesiredUpdateTimeMs);
+
+            for (int32_t i = 0; i < updateCycles; ++i) {
+                updateFunction(kDesiredUpdateTimeMs);
+            }
+        }
+
+        if (drawFunction) {
+            drawFunction();
         }
     }
 
