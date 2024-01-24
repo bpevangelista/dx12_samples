@@ -34,7 +34,8 @@ void initializeD3d(HWND hwnd) {
         commandAllocators[i] = device->createCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT);
     }
     // Single command list reused across command allocators
-    commandList = device->createCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocators[0]);
+    commandList = device->createCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, 
+        commandAllocators[0]);
 
     // Create fence to wait for available completed frames
     swapFence = device->createFence(swapFenceCounter++, D3D12_FENCE_FLAG_NONE);
