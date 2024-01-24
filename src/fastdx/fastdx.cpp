@@ -140,6 +140,16 @@ ID3D12FencePtr D3D12DeviceWrapper::createFence(uint64_t initialValue, D3D12_FENC
 }
 
 
+ID3D12PipelineStatePtr D3D12DeviceWrapper::createGraphicsPipelineState(const D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc,
+    HRESULT* outResult) {
+    ID3D12PipelineState* pipelineState = nullptr;
+    HRESULT hr = _device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pipelineState));
+
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return ID3D12PipelineStatePtr(pipelineState, PtrDeleter());
+}
+
+
 ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
     HRESULT* outResult) {
 
@@ -185,6 +195,17 @@ std::vector<ID3D12ResourcePtr> D3D12DeviceWrapper::createRenderTargetViews(
     }
 
     return resources;
+}
+
+
+ID3D12RootSignaturePtr D3D12DeviceWrapper::createRootSignature(uint32_t nodeMask, const void* data, size_t dataSizeInBytes,
+    HRESULT* outResult) {
+    ID3D12RootSignature* rootSignature = nullptr;
+    HRESULT hr = _device->CreateRootSignature(nodeMask, data, dataSizeInBytes, IID_PPV_ARGS(&rootSignature));
+
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return ID3D12RootSignaturePtr(rootSignature, PtrDeleter());
+
 }
 
 

@@ -72,10 +72,16 @@ namespace fastdx {
 
         ID3D12FencePtr createFence(uint64_t initialValue, D3D12_FENCE_FLAGS flags, HRESULT* outResult = nullptr);
 
+        ID3D12PipelineStatePtr createGraphicsPipelineState(const D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc,
+            HRESULT* outResult = nullptr);
+
         ID3D12DescriptorHeapPtr createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
             HRESULT* outResult = nullptr);
 
         std::vector<ID3D12ResourcePtr> createRenderTargetViews(IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap,
+            HRESULT* outResult = nullptr);
+
+        ID3D12RootSignaturePtr createRootSignature(uint32_t nodeMask, const void* data, size_t dataSizeInBytes,
             HRESULT* outResult = nullptr);
 
         IDXGISwapChainPtr createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue, DXGI_SWAP_CHAIN_DESC1 swapChainDesc,
