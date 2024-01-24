@@ -30,14 +30,14 @@ void initializeD3d(HWND hwnd) {
     renderTargets = device->createRenderTargetViews(swapChain, swapChainRtvHeap);
 
     // Create one command allocator per frame
-    for (int32_t i = 0; i < kFrameCount; ++i) {
+    for (int32_t i = 0; i < swapChainDesc.BufferCount; ++i) {
         commandAllocators[i] = device->createCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT);
     }
-    // Single command list reused across command allocators
+    // Create a single command list, reused across command allocators
     commandList = device->createCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, 
         commandAllocators[0]);
 
-    // Create fence to wait for available completed frames
+    // Create a fence to wait for available completed frames
     swapFence = device->createFence(swapFenceCounter++, D3D12_FENCE_FLAG_NONE);
     fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 }
