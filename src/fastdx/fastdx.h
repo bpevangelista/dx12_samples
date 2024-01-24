@@ -65,6 +65,8 @@ namespace fastdx {
 
         ID3D12CommandQueuePtr createCommandQueue(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult = nullptr);
 
+        ID3D12FencePtr createFence(uint64_t initialValue, D3D12_FENCE_FLAGS flags, HRESULT* outResult = nullptr);
+
         ID3D12DescriptorHeapPtr createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
             HRESULT* outResult = nullptr);
 

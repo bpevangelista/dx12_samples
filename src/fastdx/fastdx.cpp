@@ -95,20 +95,7 @@ D3D12DeviceWrapperPtr fastdx::createDevice(D3D_FEATURE_LEVEL featureLevel, HRESU
 }
 
 
-ID3D12CommandQueuePtr D3D12DeviceWrapper::createCommandQueue(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult) {
-    D3D12_COMMAND_QUEUE_DESC queueDesc = {};
-    queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-    queueDesc.Type = type;
-
-    ID3D12CommandQueue* commandQueue = nullptr;
-    HRESULT hr = _device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue));
-
-    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-    return ID3D12CommandQueuePtr(commandQueue, PtrDeleter());
-}
-
-
-IDXGISwapChainPtr D3D12DeviceWrapper::createWindowSwapChain(ID3D12CommandQueuePtr commandQueue,
+IDXGISwapChainPtr D3D12DeviceWrapper::createWindowSwapChain(ID3D12CommandQueuePtr commandQueue, 
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc, HWND hwnd, HRESULT* outResult) {
 
     HRESULT hr;
@@ -155,26 +142,6 @@ IDXGISwapChainPtr D3D12DeviceWrapper::createWindowSwapChain(ID3D12CommandQueuePt
     return createWindowSwapChain(commandQueue, swapChainDesc, fastdx::hwnd, outResult);
 }
 
-ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType, HRESULT* outResult) {
-
-    D3D12_DESCRIPTOR_HEAP_FLAGS heapFlags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-    if (heapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || heapType == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER) {
-        heapFlags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    }
-
-    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-    rtvHeapDesc.NumDescriptors = count;
-    rtvHeapDesc.Type = heapType;
-    rtvHeapDesc.Flags = heapFlags;
-
-    HRESULT hr;
-    ComPtr<ID3D12DescriptorHeap> heapDescriptor;
-    hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&heapDescriptor));
-
-    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-    return ID3D12DescriptorHeapPtr(heapDescriptor.Detach(), PtrDeleter());
-}
-
 
 ID3D12CommandAllocatorPtr D3D12DeviceWrapper::createCommandAllocator(D3D12_COMMAND_LIST_TYPE commandType, HRESULT* outResult) {
 
@@ -196,6 +163,51 @@ ID3D12GraphicsCommandListPtr D3D12DeviceWrapper::createCommandList(uint32_t node
 
     CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
     return ID3D12GraphicsCommandListPtr(commandList.Detach(), PtrDeleter());
+}
+
+
+ID3D12CommandQueuePtr D3D12DeviceWrapper::createCommandQueue(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult) {
+    D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+    queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+    queueDesc.Type = type;
+
+    ID3D12CommandQueue* commandQueue = nullptr;
+    HRESULT hr = _device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue));
+
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return ID3D12CommandQueuePtr(commandQueue, PtrDeleter());
+}
+
+
+ID3D12FencePtr D3D12DeviceWrapper::createFence(uint64_t initialValue, D3D12_FENCE_FLAGS flags, HRESULT* outResult) {
+
+    ID3D12Fence1* fence = nullptr;
+    HRESULT hr = _device->CreateFence(initialValue, flags, IID_PPV_ARGS(&fence));
+
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return ID3D12FencePtr(fence, PtrDeleter());
+}
+
+
+ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
+    HRESULT* outResult) {
+
+    D3D12_DESCRIPTOR_HEAP_FLAGS heapFlags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    if (heapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || heapType == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER) {
+        heapFlags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    }
+
+    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+    rtvHeapDesc.NumDescriptors = count;
+    rtvHeapDesc.Type = heapType;
+    rtvHeapDesc.Flags = heapFlags;
+
+    HRESULT hr;
+    ComPtr<ID3D12DescriptorHeap> heapDescriptor;
+    hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&heapDescriptor));
+
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return ID3D12DescriptorHeapPtr(heapDescriptor.Detach(), PtrDeleter());
 }
 
 
