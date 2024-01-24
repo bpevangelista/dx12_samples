@@ -19,23 +19,23 @@ void initializeD3d(HWND hwnd) {
     device = fastdx::createDevice(D3D_FEATURE_LEVEL_12_2);
     commandQueue = device->createCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
 
-    // Triple frame-buffer chain
+    // Create triple frame-buffer chain
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = fastdx::defaultSwapChainDesc(hwnd);
-    swapChainDesc.BufferCount = kFrameCount;
-    swapChainDesc.Format = kFrameFormat;
+    swapChainDesc.BufferCount = 3;
+    swapChainDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
     swapChain = device->createSwapChainForHwnd(commandQueue, swapChainDesc, hwnd);
 
-    // Create a heap of descriptors, then fill them with swap chain render targets desc
-    swapChainRtvHeap = device->createHeapDescriptor(8, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    // Create descriptors heap, then fill it with the swap chain render targets desc
+    swapChainRtvHeap = device->createHeapDescriptor(3, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     renderTargets = device->createRenderTargetViews(swapChain, swapChainRtvHeap);
 
-    // Create one command allocator per frame buffer
+    // Create one command allocator per frame
     for (int32_t i = 0; i < kFrameCount; ++i) {
         commandAllocators[i] = device->createCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT);
     }
     commandList = device->createCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocators[0]);
 
-    // Fence to wait for available completed frames
+    // Create fence to wait for available completed frames
     swapFence = device->createFence(swapFenceCounter++, D3D12_FENCE_FLAG_NONE);
     fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 }
@@ -47,10 +47,10 @@ void initializeD3d(HWND hwnd) {
     readShader(L"simple_vs.cso", vertexShader);
     readShader(L"simple_ps.cso", pixelShader);
     
-    // Create a root signature for shaders
+    // Create root signature for VS/PS
     pipelineRootSignature = device->createRootSignature(0, vertexShader.data(), vertexShader.size());
 
-    // Create a pipeline
+    // Create pipeline
     D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc = fastdx::defaultGraphicsPipelineDesc(kFrameFormat);
     pipelineDesc.pRootSignature = pipelineRootSignature.get();
     pipelineDesc.VS = { vertexShader.data(), vertexShader.size() };
