@@ -87,24 +87,6 @@ namespace fastdx {
 /// Defaults
 namespace fastdx {
 
-    struct DEFAULT_D3D12_RASTERIZER_DESC : public D3D12_RASTERIZER_DESC {
-        DEFAULT_D3D12_RASTERIZER_DESC() {
-            FillMode = D3D12_FILL_MODE_SOLID;
-            CullMode = D3D12_CULL_MODE_BACK;
-            FrontCounterClockwise = FALSE;
-            DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
-            DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
-            SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-            DepthClipEnable = TRUE;
-            MultisampleEnable = FALSE;
-            AntialiasedLineEnable = FALSE;
-            ForcedSampleCount = 0;
-            ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-        }
-    };
-    D3D12_RASTERIZER_DESC defaultRasterDesc() { return DEFAULT_D3D12_RASTERIZER_DESC(); }
-
-
     struct DEFAULT_D3D12_BLEND_DESC : public D3D12_BLEND_DESC {
         DEFAULT_D3D12_BLEND_DESC() {
             AlphaToCoverageEnable = FALSE;
@@ -124,5 +106,82 @@ namespace fastdx {
             }
         }
     };
-    D3D12_BLEND_DESC defaultBlendDesc() { return DEFAULT_D3D12_BLEND_DESC(); }
+    inline D3D12_BLEND_DESC defaultBlendDesc() { return DEFAULT_D3D12_BLEND_DESC(); }
+
+
+    struct DEFAULT_D3D12_DEPTH_STENCIL_DESC : public D3D12_DEPTH_STENCIL_DESC {
+        DEFAULT_D3D12_DEPTH_STENCIL_DESC() {
+            DepthEnable = TRUE;
+            DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+            DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+            StencilEnable = FALSE;
+            StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+            StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+            FrontFace = { D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP,
+                D3D12_COMPARISON_FUNC_ALWAYS };
+            BackFace = { D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP,
+                D3D12_COMPARISON_FUNC_ALWAYS };
+        }
+    };
+    inline DEFAULT_D3D12_DEPTH_STENCIL_DESC defaultDepthStencilDesc() { return DEFAULT_D3D12_DEPTH_STENCIL_DESC(); }
+
+
+    struct DEFAULT_D3D12_RASTERIZER_DESC : public D3D12_RASTERIZER_DESC {
+        DEFAULT_D3D12_RASTERIZER_DESC() {
+            FillMode = D3D12_FILL_MODE_SOLID;
+            CullMode = D3D12_CULL_MODE_BACK;
+            FrontCounterClockwise = FALSE;
+            DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+            DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+            SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+            DepthClipEnable = TRUE;
+            MultisampleEnable = FALSE;
+            AntialiasedLineEnable = FALSE;
+            ForcedSampleCount = 0;
+            ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+        }
+    };
+    inline D3D12_RASTERIZER_DESC defaultRasterizerDesc() { return DEFAULT_D3D12_RASTERIZER_DESC(); }
+
+
+    struct DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC :
+        public D3D12_GRAPHICS_PIPELINE_STATE_DESC {
+        DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC(
+            DXGI_FORMAT renderTargetFormat) {
+            memset(this, 0, sizeof(*this));
+            BlendState = fastdx::defaultBlendDesc();
+            SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
+            RasterizerState = fastdx::defaultRasterizerDesc();
+            DepthStencilState = fastdx::defaultDepthStencilDesc();
+            PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+            NumRenderTargets = 1;
+            RTVFormats[0] = renderTargetFormat;
+            DSVFormat = DXGI_FORMAT_D32_FLOAT;
+            SampleDesc = DXGI_SAMPLE_DESC{ 1, 0 };
+            Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+        }
+    };
+    inline D3D12_GRAPHICS_PIPELINE_STATE_DESC defaultGraphicsPipelineDesc(DXGI_FORMAT renderTargetFormat) {
+        return DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC(renderTargetFormat);
+    }
+
+
+    struct DEFAULT_DXGI_SWAP_CHAIN_DESC1 : public DXGI_SWAP_CHAIN_DESC1 {
+        DEFAULT_DXGI_SWAP_CHAIN_DESC1(const HWND hwnd) {
+            RECT windowRect;
+            GetWindowRect(hwnd, &windowRect);
+            Width = windowRect.right - windowRect.left;
+            Height = windowRect.bottom - windowRect.top;
+            Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            Stereo = FALSE;
+            SampleDesc = DXGI_SAMPLE_DESC{ 1, 0 };
+            BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+            BufferCount = 2;
+            Scaling = DXGI_SCALING_STRETCH;
+            SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+            AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+            Flags = 0;
+        }
+    };
+    inline DXGI_SWAP_CHAIN_DESC1 defaultSwapChainDesc(const HWND hwnd) { return DEFAULT_DXGI_SWAP_CHAIN_DESC1(hwnd); }
 };
