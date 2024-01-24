@@ -9,7 +9,7 @@ using namespace fastdx;
 using namespace Microsoft::WRL;
 
 #ifndef CHECK_ASSIGN_RETURN_IF_FAILED_
-#define CHECK_ASSIGN_RETURN_IF_FAILED_(HRESULTVAR, OUTVAR) { if (_checkFailedAndAssign(HRESULTVAR, OUTVAR)) { return; } }
+#define CHECK_ASSIGN_RETURN_IF_FAILED_(HRESULTVAR, OUTVAR, ...) { if (_checkFailedAndAssign(HRESULTVAR, OUTVAR)) { return __VA_ARGS__; } }
 #endif
 
 #ifndef CHECK_ASSIGN_RETURN_IF_FAILED
@@ -25,7 +25,6 @@ bool _checkFailedAndAssign(HRESULT hr, HRESULT* outResult) {
 }
 
 namespace fastdx {
-    HWND hwnd = nullptr;
     std::shared_ptr<IDXGIFactory4> _dxgiFactory = nullptr;
 };
 
@@ -92,54 +91,6 @@ D3D12DeviceWrapperPtr fastdx::createDevice(D3D_FEATURE_LEVEL featureLevel, HRESU
 
     auto devicePtr = std::shared_ptr<ID3D12Device2>(device, PtrDeleter());
     return D3D12DeviceWrapperPtr(new D3D12DeviceWrapper(devicePtr));
-}
-
-
-IDXGISwapChainPtr D3D12DeviceWrapper::createWindowSwapChain(ID3D12CommandQueuePtr commandQueue, 
-    DXGI_SWAP_CHAIN_DESC1 swapChainDesc, HWND hwnd, HRESULT* outResult) {
-
-    HRESULT hr;
-    std::shared_ptr<IDXGIFactory4> dxgiFactory = getOrCreateDXIG(&hr);
-    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-
-    ComPtr<IDXGISwapChain1> swapChain1;
-    hr = dxgiFactory->CreateSwapChainForHwnd(
-        commandQueue.get(),     // Swap chain is linked to queue
-        hwnd,
-        &swapChainDesc,
-        nullptr,
-        nullptr,
-        &swapChain1
-    );
-    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-
-    hr = dxgiFactory->MakeWindowAssociation(hwnd, 0);
-    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-
-    ComPtr<IDXGISwapChain3> swapChain3;
-    hr = swapChain1.As(&swapChain3);
-
-    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-    return IDXGISwapChainPtr(swapChain3.Detach(), PtrDeleter());
-}
-
-
-IDXGISwapChainPtr D3D12DeviceWrapper::createWindowSwapChain(ID3D12CommandQueuePtr commandQueue, 
-    uint32_t bufferCount, DXGI_FORMAT format, HRESULT* outResult) {
-
-    RECT windowRect;
-    GetWindowRect(hwnd, &windowRect);
-
-    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-    swapChainDesc.BufferCount = bufferCount; // Tripple Buffering
-    swapChainDesc.Width = windowRect.right - windowRect.left;
-    swapChainDesc.Height = windowRect.bottom - windowRect.top;
-    swapChainDesc.Format = format;
-    swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    swapChainDesc.SampleDesc.Count = 1;
-
-    return createWindowSwapChain(commandQueue, swapChainDesc, fastdx::hwnd, outResult);
 }
 
 
@@ -211,24 +162,58 @@ ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, 
 }
 
 
-void D3D12DeviceWrapper::createRenderTargetViews(IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap, HRESULT* outResult) {
+std::vector<ID3D12ResourcePtr> D3D12DeviceWrapper::createRenderTargetViews(
+    IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap, HRESULT* outResult) {
 
     HRESULT hr;
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
     hr = swapChain->GetDesc1(&swapChainDesc);
-    CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult);
+    CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult, std::vector<ID3D12ResourcePtr>());
 
     D3D12_CPU_DESCRIPTOR_HANDLE heapHandle = heap->GetCPUDescriptorHandleForHeapStart();
     size_t heapDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
+    std::vector<ID3D12ResourcePtr> resources;
     ComPtr<ID3D12Resource> renderTarget;
     for (uint32_t i = 0; i < swapChainDesc.BufferCount; ++i) {
-        hr = swapChain->GetBuffer(i++, IID_PPV_ARGS(&renderTarget));
-        CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult);
+        hr = swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTarget));
+        CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult, std::vector<ID3D12ResourcePtr>());
 
         _device->CreateRenderTargetView(renderTarget.Get(), nullptr, heapHandle);
         heapHandle.ptr += heapDescriptorSize;
+        resources.push_back(ID3D12ResourcePtr(renderTarget.Detach(), PtrDeleter()));
     }
+
+    return resources;
+}
+
+
+IDXGISwapChainPtr D3D12DeviceWrapper::createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue,
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc, HWND hwnd, HRESULT* outResult) {
+
+    HRESULT hr;
+    std::shared_ptr<IDXGIFactory4> dxgiFactory = getOrCreateDXIG(&hr);
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+
+    ComPtr<IDXGISwapChain1> swapChain1;
+    hr = dxgiFactory->CreateSwapChainForHwnd(
+        commandQueue.get(),     // Swap chain is linked to queue
+        hwnd,
+        &swapChainDesc,
+        nullptr,
+        nullptr,
+        &swapChain1
+    );
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+
+    hr = dxgiFactory->MakeWindowAssociation(hwnd, 0);
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+
+    ComPtr<IDXGISwapChain3> swapChain3;
+    hr = swapChain1.As(&swapChain3);
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+
+    return IDXGISwapChainPtr(swapChain3.Detach(), PtrDeleter());
 }
 
 
@@ -264,7 +249,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 
-HRESULT fastdx::createWindow(const WindowProperties& properties, HWND* optOutWindow) {
+HWND fastdx::createWindow(const WindowProperties& properties, HRESULT* outResult) {
     HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(nullptr);
 
     WNDCLASSEX wc = { 0 };
@@ -277,7 +262,7 @@ HRESULT fastdx::createWindow(const WindowProperties& properties, HWND* optOutWin
     wc.lpszClassName = L"fastdx";
     RegisterClassEx(&wc);
 
-    hwnd = CreateWindow(
+    HWND hwnd = CreateWindow(
         wc.lpszClassName,
         properties.title,
         properties.isFullScreen? WS_POPUP : WS_OVERLAPPEDWINDOW,
@@ -293,16 +278,12 @@ HRESULT fastdx::createWindow(const WindowProperties& properties, HWND* optOutWin
     if (!hwnd) {
         HRESULT result = HRESULT_FROM_WIN32(GetLastError());
         UnregisterClass(wc.lpszClassName, nullptr);
-        return result;
-    }
-
-    if (optOutWindow) {
-        *optOutWindow = hwnd;
+        CHECK_ASSIGN_RETURN_IF_FAILED(result, outResult);
     }
 
     ShowWindow(hwnd, properties.showMode);
 
-    return S_OK;
+    return hwnd;
 }
 
 

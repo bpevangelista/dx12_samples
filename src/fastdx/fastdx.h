@@ -31,7 +31,12 @@ namespace fastdx {
     typedef std::shared_ptr<ID3D12DescriptorHeap> ID3D12DescriptorHeapPtr;
     typedef std::shared_ptr<ID3D12Device2> ID3D12DevicePtr;
     typedef std::shared_ptr<ID3D12Fence> ID3D12FencePtr;
-    typedef std::shared_ptr <ID3D12GraphicsCommandList6> ID3D12GraphicsCommandListPtr;
+    typedef std::shared_ptr<ID3D12GraphicsCommandList6> ID3D12GraphicsCommandListPtr;
+    typedef std::shared_ptr<ID3D12PipelineState> ID3D12PipelineStatePtr;
+    typedef std::shared_ptr<ID3D12Resource> ID3D12ResourcePtr;
+    typedef std::shared_ptr<ID3D12RootSignature> ID3D12RootSignaturePtr;
+
+    typedef std::shared_ptr<ID3DBlob> ID3DBlobPtr;
     typedef std::shared_ptr<IDXGISwapChain3> IDXGISwapChainPtr;
 
     class D3D12DeviceWrapper;
@@ -45,7 +50,7 @@ namespace fastdx {
         bool isFullScreen = false;
     };
 
-    HRESULT createWindow(const WindowProperties& properties, HWND* optOutWindow = nullptr);
+    HWND createWindow(const WindowProperties& properties, HRESULT* outResult = nullptr);
     HRESULT runMainLoop(std::function<void(double)> updateFunction = nullptr, std::function<void()> drawFunction = nullptr);
     D3D12DeviceWrapperPtr createDevice(D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_12_2, HRESULT* outResult = nullptr);
 
@@ -70,13 +75,11 @@ namespace fastdx {
         ID3D12DescriptorHeapPtr createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
             HRESULT* outResult = nullptr);
 
-        IDXGISwapChainPtr createWindowSwapChain(ID3D12CommandQueuePtr commandQueue, uint32_t bufferCount, DXGI_FORMAT format,
+        std::vector<ID3D12ResourcePtr> createRenderTargetViews(IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap,
             HRESULT* outResult = nullptr);
-        IDXGISwapChainPtr createWindowSwapChain(ID3D12CommandQueuePtr commandQueue, DXGI_SWAP_CHAIN_DESC1 swapChainDesc,
-            HWND hwnd, HRESULT* outResult = nullptr);
 
-        void createRenderTargetViews(IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap,
-            HRESULT* outResult = nullptr);
+        IDXGISwapChainPtr createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue, DXGI_SWAP_CHAIN_DESC1 swapChainDesc,
+            HWND hwnd, HRESULT* outResult = nullptr);
 
     private:
         ID3D12DevicePtr _device;
