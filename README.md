@@ -33,6 +33,7 @@ void initializeD3d(HWND hwnd) {
     for (int32_t i = 0; i < kFrameCount; ++i) {
         commandAllocators[i] = device->createCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT);
     }
+    // Single command list reused across command allocators
     commandList = device->createCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocators[0]);
 
     // Create fence to wait for available completed frames
@@ -43,17 +44,17 @@ void initializeD3d(HWND hwnd) {
 
 ### Pipeline Setup
 ```cpp
-    // Read VS and PS
-    readShader(L"simple_vs.cso", vertexShader);
-    readShader(L"simple_ps.cso", pixelShader);
+// Read VS and PS
+readShader(L"simple_vs.cso", vertexShader);
+readShader(L"simple_ps.cso", pixelShader);
     
-    // Create root signature for VS/PS
-    pipelineRootSignature = device->createRootSignature(0, vertexShader.data(), vertexShader.size());
+// Create root signature for VS/PS
+pipelineRootSignature = device->createRootSignature(0, vertexShader.data(), vertexShader.size());
 
-    // Create pipeline
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc = fastdx::defaultGraphicsPipelineDesc(kFrameFormat);
-    pipelineDesc.pRootSignature = pipelineRootSignature.get();
-    pipelineDesc.VS = { vertexShader.data(), vertexShader.size() };
-    pipelineDesc.PS = { pixelShader.data(), pixelShader.size() };
-    pipelineState = device->createGraphicsPipelineState(pipelineDesc);
+// Create pipeline
+D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc = fastdx::defaultGraphicsPipelineDesc(kFrameFormat);
+pipelineDesc.pRootSignature = pipelineRootSignature.get();
+pipelineDesc.VS = { vertexShader.data(), vertexShader.size() };
+pipelineDesc.PS = { pixelShader.data(), pixelShader.size() };
+pipelineState = device->createGraphicsPipelineState(pipelineDesc);
 ```
