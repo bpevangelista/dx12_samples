@@ -134,20 +134,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\fastdx\fastdx.cpp" />
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="skinning_tensor_core.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\fastdx\fastdx.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <FxCompile Include="assets\simple_ps.hlsl">
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.5</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
-    </FxCompile>
-    <FxCompile Include="assets\simple_vs.hlsl">
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.5</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
-    </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
