@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <FxCompile Include="assets\simple_ps.hlsl">
+      <Filter>assets</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\simple_vs.hlsl">
+      <Filter>assets</Filter>
+    </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\fastdx\fastdx.cpp" />
+    <ClCompile Include="triangle.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\fastdx\fastdx.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="assets">
+      <UniqueIdentifier>{0e1abddd-75d6-4c0f-8d6b-03b721dd16b6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
