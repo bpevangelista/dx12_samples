@@ -154,6 +154,22 @@ namespace fastdx {
     inline D3D12_RASTERIZER_DESC defaultRasterizerDesc() { return DEFAULT_D3D12_RASTERIZER_DESC(); }
 
 
+    inline D3D12_RESOURCE_DESC defaultResourceDesc(D3D12_RESOURCE_DIMENSION dimension, uint32_t width, uint32_t height, uint16_t depth, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags) {
+        return D3D12_RESOURCE_DESC {
+            dimension,
+            0,
+            static_cast<uint64_t>(width),
+            height,
+            depth,
+            0,
+            format,
+            {1, 0},
+            D3D12_TEXTURE_LAYOUT_UNKNOWN,
+            flags,
+        };
+    }
+
+
     struct DEFAULT_DXGI_SWAP_CHAIN_DESC1 : public DXGI_SWAP_CHAIN_DESC1 {
         DEFAULT_DXGI_SWAP_CHAIN_DESC1(const HWND hwnd) {
             RECT windowRect;
