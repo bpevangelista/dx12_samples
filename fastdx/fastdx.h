@@ -85,7 +85,7 @@ namespace fastdx {
         ID3D12RootSignaturePtr createRootSignature(uint32_t nodeMask, const void* data, size_t dataSizeInBytes,
             HRESULT* outResult = nullptr);
 
-        IDXGISwapChainPtr createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue, DXGI_SWAP_CHAIN_DESC1 swapChainDesc,
+        IDXGISwapChainPtr createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue, const DXGI_SWAP_CHAIN_DESC1& swapChainDesc,
             HWND hwnd, HRESULT* outResult = nullptr);
 
     private:

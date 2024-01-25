@@ -212,7 +212,7 @@ ID3D12RootSignaturePtr D3D12DeviceWrapper::createRootSignature(uint32_t nodeMask
 
 
 IDXGISwapChainPtr D3D12DeviceWrapper::createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue,
-    DXGI_SWAP_CHAIN_DESC1 swapChainDesc, HWND hwnd, HRESULT* outResult) {
+    const DXGI_SWAP_CHAIN_DESC1& swapChainDesc, HWND hwnd, HRESULT* outResult) {
 
     HRESULT hr;
     std::shared_ptr<IDXGIFactory4> dxgiFactory = getOrCreateDXIG(&hr);
