@@ -34,7 +34,7 @@ void initializeD3d(HWND hwnd) {
         commandAllocators[i] = device->createCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT);
     }
     // Create a single command list, reused across command allocators
-    commandList = device->createCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, 
+    commandList = device->createCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
         commandAllocators[0]);
 
     // Create a fence to wait for available completed frames
@@ -48,7 +48,7 @@ void initializeD3d(HWND hwnd) {
 // Read VS and PS
 readShader(L"simple_vs.cso", vertexShader);
 readShader(L"simple_ps.cso", pixelShader);
-    
+
 // Create root signature for VS/PS
 pipelineRootSignature = device->createRootSignature(0, vertexShader.data(), vertexShader.size());
 
