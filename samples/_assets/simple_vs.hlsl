@@ -1,14 +1,3 @@
-/*
-#define ROOT_SIG ""
-
-
-v2f main(a2v IN) {
-    v2f OUT;
-    OUT.position = IN.position;
-    OUT.color = IN.color;
-    return OUT;
-}
-*/
 
 struct a2v {
     float4 position : POSITION;
