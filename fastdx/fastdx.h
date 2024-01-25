@@ -51,9 +51,10 @@ namespace fastdx {
     };
 
     HWND createWindow(const WindowProperties& properties, HRESULT* outResult = nullptr);
-    HRESULT runMainLoop(std::function<void(double)> updateFunction = nullptr, std::function<void()> drawFunction = nullptr);
-    D3D12DeviceWrapperPtr createDevice(D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_12_2, HRESULT* outResult = nullptr);
+    int runMainLoop(std::function<void(double)> updateFunction = nullptr, std::function<void()> drawFunction = nullptr);
+    extern std::function<void()> onWindowDestroy;
 
+    D3D12DeviceWrapperPtr createDevice(D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_12_2, HRESULT* outResult = nullptr);
 
     class D3D12DeviceWrapper {
     public:
@@ -153,6 +154,26 @@ namespace fastdx {
     inline D3D12_RASTERIZER_DESC defaultRasterizerDesc() { return DEFAULT_D3D12_RASTERIZER_DESC(); }
 
 
+    struct DEFAULT_DXGI_SWAP_CHAIN_DESC1 : public DXGI_SWAP_CHAIN_DESC1 {
+        DEFAULT_DXGI_SWAP_CHAIN_DESC1(const HWND hwnd) {
+            RECT windowRect;
+            GetWindowRect(hwnd, &windowRect);
+            Width = windowRect.right - windowRect.left;
+            Height = windowRect.bottom - windowRect.top;
+            Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            Stereo = FALSE;
+            SampleDesc = DXGI_SAMPLE_DESC{ 1, 0 };
+            BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+            BufferCount = 2;
+            Scaling = DXGI_SCALING_STRETCH;
+            SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+            AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+            Flags = 0;
+        }
+    };
+    inline DXGI_SWAP_CHAIN_DESC1 defaultSwapChainDesc(const HWND hwnd) { return DEFAULT_DXGI_SWAP_CHAIN_DESC1(hwnd); }
+
+
     struct DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC :
         public D3D12_GRAPHICS_PIPELINE_STATE_DESC {
         DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC(
@@ -173,24 +194,4 @@ namespace fastdx {
     inline D3D12_GRAPHICS_PIPELINE_STATE_DESC defaultGraphicsPipelineDesc(DXGI_FORMAT renderTargetFormat) {
         return DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC(renderTargetFormat);
     }
-
-
-    struct DEFAULT_DXGI_SWAP_CHAIN_DESC1 : public DXGI_SWAP_CHAIN_DESC1 {
-        DEFAULT_DXGI_SWAP_CHAIN_DESC1(const HWND hwnd) {
-            RECT windowRect;
-            GetWindowRect(hwnd, &windowRect);
-            Width = windowRect.right - windowRect.left;
-            Height = windowRect.bottom - windowRect.top;
-            Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-            Stereo = FALSE;
-            SampleDesc = DXGI_SAMPLE_DESC{ 1, 0 };
-            BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-            BufferCount = 2;
-            Scaling = DXGI_SCALING_STRETCH;
-            SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-            AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-            Flags = 0;
-        }
-    };
-    inline DXGI_SWAP_CHAIN_DESC1 defaultSwapChainDesc(const HWND hwnd) { return DEFAULT_DXGI_SWAP_CHAIN_DESC1(hwnd); }
 };

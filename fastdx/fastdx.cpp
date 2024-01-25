@@ -24,8 +24,10 @@ bool _checkFailedAndAssign(HRESULT hr, HRESULT* outResult) {
     return FAILED(hr);
 }
 
+
 namespace fastdx {
     std::shared_ptr<IDXGIFactory4> _dxgiFactory = nullptr;
+    std::function<void()> onWindowDestroy = nullptr;
 };
 
 
@@ -308,7 +310,7 @@ HWND fastdx::createWindow(const WindowProperties& properties, HRESULT* outResult
 }
 
 
-HRESULT fastdx::runMainLoop(std::function<void(double)> updateFunction, std::function<void()> drawFunction) {
+int fastdx::runMainLoop(std::function<void(double)> updateFunction, std::function<void()> drawFunction) {
     MSG msg = {};
     const double kDesiredUpdateTimeMs = 1.0 / 60.0;
     double remainingElapsedTimeMs = 0.0;
@@ -340,5 +342,7 @@ HRESULT fastdx::runMainLoop(std::function<void(double)> updateFunction, std::fun
         }
     }
 
-    return S_OK;
+    fastdx::onWindowDestroy();
+
+    return static_cast<int>(msg.wParam);
 }
