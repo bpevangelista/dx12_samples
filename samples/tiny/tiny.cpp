@@ -3,8 +3,8 @@
 #include <fstream>
 
 const int32_t kFrameCount = 3;
-const float kClearColor[4] = { 0.0f, 0.2f, 0.4f, 1.0f };
 const DXGI_FORMAT kFrameFormat = DXGI_FORMAT_R10G10B10A2_UNORM;
+const D3D12_CLEAR_VALUE kClearRenderTarget = { kFrameFormat, { 0.0f, 0.2f, 0.4f, 1.0f } };
 
 fastdx::D3D12DeviceWrapperPtr device;
 fastdx::ID3D12CommandQueuePtr commandQueue;
@@ -48,7 +48,7 @@ void initializeD3d(HWND hwnd) {
     swapChain = device->createSwapChainForHwnd(commandQueue, swapChainDesc, hwnd);
 
     // Create a heap of descriptors, then them fill with swap chain render targets desc
-    swapChainRtvHeap = device->createHeapDescriptor(8, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    swapChainRtvHeap = device->createHeapDescriptor(kFrameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     renderTargets = device->createRenderTargetViews(swapChain, swapChainRtvHeap);
 
     // Create one command allocator per frame buffer
@@ -79,14 +79,27 @@ void initializeD3d(HWND hwnd) {
     pipelineState = device->createGraphicsPipelineState(pipelineDesc);
 }
 
-void draw() {
-    D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = swapChainRtvHeap->GetCPUDescriptorHandleForHeapStart();
-    size_t heapDescriptorSize = device->d3dDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-    rtvHandle.ptr += frameIndex * heapDescriptorSize;
+void waitGpu(bool forceWait = false) {
+    // Queue always signal increasing counter values
+    commandQueue->Signal(swapFence.get(), swapFenceCounter);
+    swapFenceWaitValue[frameIndex] = swapFenceCounter++;
 
-    D3D12_RESOURCE_BARRIER transitionBarrier = { D3D12_RESOURCE_BARRIER_TYPE_TRANSITION, D3D12_RESOURCE_BARRIER_FLAG_NONE };
-    transitionBarrier.Transition.pResource = renderTargets[frameIndex].get();
-    transitionBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    // Wait if next frame not ready
+    int32_t nextFrameIndex = swapChain->GetCurrentBackBufferIndex();
+    if (swapFence->GetCompletedValue() < swapFenceWaitValue[nextFrameIndex] || forceWait) {
+        swapFence->SetEventOnCompletion(swapFenceWaitValue[nextFrameIndex], fenceEvent);
+        WaitForSingleObjectEx(fenceEvent, INFINITE, FALSE);
+    }
+    frameIndex = nextFrameIndex;
+}
+
+void draw() {
+    static D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = swapChainRtvHeap->GetCPUDescriptorHandleForHeapStart();
+    static size_t heapDescriptorSize = device->d3dDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    D3D12_CPU_DESCRIPTOR_HANDLE frameRtvHandle = { rtvHandle.ptr + frameIndex * heapDescriptorSize };
+
+    static D3D12_RESOURCE_BARRIER transitionBarrier = { D3D12_RESOURCE_BARRIER_TYPE_TRANSITION, D3D12_RESOURCE_BARRIER_FLAG_NONE,
+        nullptr,  D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES };
 
     // Get and reset allocator for current frame, then point command list to it
     auto commandAllocator = commandAllocators[frameIndex];
@@ -94,13 +107,14 @@ void draw() {
     commandList->Reset(commandAllocator.get(), nullptr);
     {
         // Present->RenderTarget barrier
+        transitionBarrier.Transition.pResource = renderTargets[frameIndex].get();
         transitionBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
         transitionBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         commandList->ResourceBarrier(1, &transitionBarrier);
 
         commandList->SetPipelineState(pipelineState.get());
-        commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-        commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
+        commandList->OMSetRenderTargets(1, &frameRtvHandle, FALSE, nullptr);
+        commandList->ClearRenderTargetView(frameRtvHandle, kClearRenderTarget.Color, 0, nullptr);
 
         // RenderTarget->Present barrier
         transitionBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -114,22 +128,15 @@ void draw() {
     commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
     swapChain->Present(1, 0);
 
-    // Queue always signal increasing counter values
-    commandQueue->Signal(swapFence.get(), swapFenceCounter);
-    swapFenceWaitValue[frameIndex] = swapFenceCounter++;
-
-    // Wait if next frame not ready
-    int32_t nextFrameIndex = swapChain->GetCurrentBackBufferIndex();
-    if (swapFence->GetCompletedValue() < swapFenceWaitValue[nextFrameIndex]) {
-        swapFence->SetEventOnCompletion(swapFenceWaitValue[nextFrameIndex], fenceEvent);
-        WaitForSingleObjectEx(fenceEvent, INFINITE, FALSE);
-    }
-    frameIndex = nextFrameIndex;
+    waitGpu();
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     fastdx::WindowProperties prop;
     HWND hwnd = fastdx::createWindow(prop);
+    fastdx::onWindowDestroy = []() {
+        waitGpu(true);
+    };
     initializeD3d(hwnd);
 
     return fastdx::runMainLoop(nullptr, draw);
