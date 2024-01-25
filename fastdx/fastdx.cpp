@@ -132,6 +132,30 @@ ID3D12CommandQueuePtr D3D12DeviceWrapper::createCommandQueue(D3D12_COMMAND_LIST_
 }
 
 
+ID3D12ResourcePtr D3D12DeviceWrapper::createCommittedResource(
+    const D3D12_HEAP_PROPERTIES& heapProperties,
+    D3D12_HEAP_FLAGS heapFlags,
+    const D3D12_RESOURCE_DESC& desc,
+    D3D12_RESOURCE_STATES initialState,
+    const D3D12_CLEAR_VALUE* optOptimalClearValue,
+    HRESULT* outResult) {
+
+    HRESULT hr;
+    ID3D12Resource* resource;
+    hr = _device->CreateCommittedResource(&heapProperties, heapFlags, &desc, initialState, optOptimalClearValue,
+        IID_PPV_ARGS(&resource));
+
+    CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+    return ID3D12ResourcePtr(resource, PtrDeleter());
+}
+
+
+void D3D12DeviceWrapper::createDepthStencilView(ID3D12ResourcePtr resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc,
+    D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+    _device->CreateDepthStencilView(resource.get(), &desc, handle);
+}
+
+
 ID3D12FencePtr D3D12DeviceWrapper::createFence(uint64_t initialValue, D3D12_FENCE_FLAGS flags, HRESULT* outResult) {
 
     ID3D12Fence1* fence = nullptr;
@@ -171,6 +195,12 @@ ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, 
 
     CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
     return ID3D12DescriptorHeapPtr(heapDescriptor.Detach(), PtrDeleter());
+}
+
+
+void D3D12DeviceWrapper::createRenderTargetView(ID3D12ResourcePtr resource, const D3D12_RENDER_TARGET_VIEW_DESC& desc,
+    D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+    _device->CreateRenderTargetView(resource.get(), &desc, handle);
 }
 
 

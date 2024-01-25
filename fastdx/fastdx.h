@@ -71,6 +71,13 @@ namespace fastdx {
 
         ID3D12CommandQueuePtr createCommandQueue(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult = nullptr);
 
+        ID3D12ResourcePtr createCommittedResource(const D3D12_HEAP_PROPERTIES& heapProperties, D3D12_HEAP_FLAGS heapFlags, 
+            const D3D12_RESOURCE_DESC& desc, D3D12_RESOURCE_STATES initialState, const D3D12_CLEAR_VALUE* optOptimalClearValue,
+            HRESULT* outResult = nullptr);
+
+        void createDepthStencilView(ID3D12ResourcePtr resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc,
+            D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
         ID3D12FencePtr createFence(uint64_t initialValue, D3D12_FENCE_FLAGS flags, HRESULT* outResult = nullptr);
 
         ID3D12PipelineStatePtr createGraphicsPipelineState(const D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc,
@@ -78,6 +85,9 @@ namespace fastdx {
 
         ID3D12DescriptorHeapPtr createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
             HRESULT* outResult = nullptr);
+
+        void createRenderTargetView(ID3D12ResourcePtr resource, const D3D12_RENDER_TARGET_VIEW_DESC& desc,
+            D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
         std::vector<ID3D12ResourcePtr> createRenderTargetViews(IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap,
             HRESULT* outResult = nullptr);
