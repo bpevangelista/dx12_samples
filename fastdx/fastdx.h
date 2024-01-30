@@ -71,12 +71,9 @@ namespace fastdx {
 
         ID3D12CommandQueuePtr createCommandQueue(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult = nullptr);
 
-        ID3D12ResourcePtr createCommittedResource(const D3D12_HEAP_PROPERTIES& heapProperties, D3D12_HEAP_FLAGS heapFlags, 
+        ID3D12ResourcePtr createCommittedResource(const D3D12_HEAP_PROPERTIES& heapProperties, D3D12_HEAP_FLAGS heapFlags,
             const D3D12_RESOURCE_DESC& desc, D3D12_RESOURCE_STATES initialState, const D3D12_CLEAR_VALUE* optOptimalClearValue,
             HRESULT* outResult = nullptr);
-
-        void createDepthStencilView(ID3D12ResourcePtr resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc,
-            D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
         ID3D12FencePtr createFence(uint64_t initialValue, D3D12_FENCE_FLAGS flags, HRESULT* outResult = nullptr);
 
@@ -86,17 +83,24 @@ namespace fastdx {
         ID3D12DescriptorHeapPtr createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
             HRESULT* outResult = nullptr);
 
-        void createRenderTargetView(ID3D12ResourcePtr resource, const D3D12_RENDER_TARGET_VIEW_DESC& desc,
-            D3D12_CPU_DESCRIPTOR_HANDLE handle);
-
-        std::vector<ID3D12ResourcePtr> createRenderTargetViews(IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap,
-            HRESULT* outResult = nullptr);
+        std::vector<ID3D12ResourcePtr> createRenderTargetViews(IDXGISwapChainPtr swapChain,
+            ID3D12DescriptorHeapPtr heap, HRESULT* outResult = nullptr);
 
         ID3D12RootSignaturePtr createRootSignature(uint32_t nodeMask, const void* data, size_t dataSizeInBytes,
             HRESULT* outResult = nullptr);
 
         IDXGISwapChainPtr createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue, const DXGI_SWAP_CHAIN_DESC1& swapChainDesc,
             HWND hwnd, HRESULT* outResult = nullptr);
+
+
+        void createDepthStencilView(ID3D12ResourcePtr resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc,
+            D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
+        void createRenderTargetView(ID3D12ResourcePtr resource, const D3D12_RENDER_TARGET_VIEW_DESC& desc,
+            D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
+        void createShaderResourceView(ID3D12ResourcePtr resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc,
+            D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
     private:
         ID3D12DevicePtr _device;
@@ -164,14 +168,15 @@ namespace fastdx {
     inline D3D12_RASTERIZER_DESC defaultRasterizerDesc() { return DEFAULT_D3D12_RASTERIZER_DESC(); }
 
 
-    inline D3D12_RESOURCE_DESC defaultResourceDesc(D3D12_RESOURCE_DIMENSION dimension, uint32_t width, uint32_t height, uint16_t depth, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags) {
-        return D3D12_RESOURCE_DESC {
+    inline D3D12_RESOURCE_DESC defaultResourceTexDesc(D3D12_RESOURCE_DIMENSION dimension, uint32_t width,
+        uint32_t height, uint16_t depth, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags) {
+        return D3D12_RESOURCE_DESC{
             dimension,
-            0,
+            0,                                      // 4MB for MSAA, 64KB otherwise
             static_cast<uint64_t>(width),
             height,
             depth,
-            0,
+            0,                                      // Mips from 0 to N
             format,
             {1, 0},
             D3D12_TEXTURE_LAYOUT_UNKNOWN,
@@ -180,24 +185,55 @@ namespace fastdx {
     }
 
 
+    inline D3D12_RESOURCE_DESC defaultResourceBufferDesc(uint32_t width,
+        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE) {
+        return D3D12_RESOURCE_DESC{
+            D3D12_RESOURCE_DIMENSION_BUFFER,
+            0,                                      // 64KB alignment
+            static_cast<uint64_t>(width),
+            1,                                      // Unchangeable
+            1,                                      // Unchangeable
+            1,                                      // Unchangeable
+            DXGI_FORMAT_UNKNOWN,                    // Unchangeable
+            {1, 0},                                 // Unchangeable
+            D3D12_TEXTURE_LAYOUT_ROW_MAJOR,         // Unchangeable
+            flags,
+        };
+    }
+
+
+    struct DEFAULT_D3D12_SHADER_RESOURCE_VIEW_DESC : public D3D12_SHADER_RESOURCE_VIEW_DESC {
+        DEFAULT_D3D12_SHADER_RESOURCE_VIEW_DESC(D3D12_SRV_DIMENSION dimension) {
+            memset(this, 0, sizeof(D3D12_SHADER_RESOURCE_VIEW_DESC));
+            ViewDimension = dimension;
+            Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        }
+    };
+    inline D3D12_SHADER_RESOURCE_VIEW_DESC defaultShaderResourceDesc(D3D12_SRV_DIMENSION dimension) {
+        return DEFAULT_D3D12_SHADER_RESOURCE_VIEW_DESC(dimension);
+    }
+
+
     struct DEFAULT_DXGI_SWAP_CHAIN_DESC1 : public DXGI_SWAP_CHAIN_DESC1 {
-        DEFAULT_DXGI_SWAP_CHAIN_DESC1(const HWND hwnd) {
+        DEFAULT_DXGI_SWAP_CHAIN_DESC1(const HWND hwnd, uint32_t bufferCount = 2, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM) {
             RECT windowRect;
             GetWindowRect(hwnd, &windowRect);
             Width = windowRect.right - windowRect.left;
             Height = windowRect.bottom - windowRect.top;
-            Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            Format = format;
             Stereo = FALSE;
             SampleDesc = DXGI_SAMPLE_DESC{ 1, 0 };
             BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-            BufferCount = 2;
+            BufferCount = bufferCount;
             Scaling = DXGI_SCALING_STRETCH;
             SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
             AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
             Flags = 0;
         }
     };
-    inline DXGI_SWAP_CHAIN_DESC1 defaultSwapChainDesc(const HWND hwnd) { return DEFAULT_DXGI_SWAP_CHAIN_DESC1(hwnd); }
+    inline DXGI_SWAP_CHAIN_DESC1 defaultSwapChainDesc(const HWND hwnd, uint32_t bufferCount = 2, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM) {
+        return DEFAULT_DXGI_SWAP_CHAIN_DESC1(hwnd, bufferCount, format);
+    }
 
 
     struct DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC :

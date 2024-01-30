@@ -150,12 +150,6 @@ ID3D12ResourcePtr D3D12DeviceWrapper::createCommittedResource(
 }
 
 
-void D3D12DeviceWrapper::createDepthStencilView(ID3D12ResourcePtr resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc,
-    D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-    _device->CreateDepthStencilView(resource.get(), &desc, handle);
-}
-
-
 ID3D12FencePtr D3D12DeviceWrapper::createFence(uint64_t initialValue, D3D12_FENCE_FLAGS flags, HRESULT* outResult) {
 
     ID3D12Fence1* fence = nullptr;
@@ -195,12 +189,6 @@ ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, 
 
     CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
     return ID3D12DescriptorHeapPtr(heapDescriptor.Detach(), PtrDeleter());
-}
-
-
-void D3D12DeviceWrapper::createRenderTargetView(ID3D12ResourcePtr resource, const D3D12_RENDER_TARGET_VIEW_DESC& desc,
-    D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-    _device->CreateRenderTargetView(resource.get(), &desc, handle);
 }
 
 
@@ -267,6 +255,24 @@ IDXGISwapChainPtr D3D12DeviceWrapper::createSwapChainForHwnd(ID3D12CommandQueueP
     CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
 
     return IDXGISwapChainPtr(swapChain3.Detach(), PtrDeleter());
+}
+
+
+void D3D12DeviceWrapper::createDepthStencilView(ID3D12ResourcePtr resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc,
+    D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+    _device->CreateDepthStencilView(resource.get(), &desc, handle);
+}
+
+
+void D3D12DeviceWrapper::createRenderTargetView(ID3D12ResourcePtr resource, const D3D12_RENDER_TARGET_VIEW_DESC& desc,
+    D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+    _device->CreateRenderTargetView(resource.get(), &desc, handle);
+}
+
+
+void D3D12DeviceWrapper::createShaderResourceView(ID3D12ResourcePtr resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc,
+    D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+    _device->CreateShaderResourceView(resource.get(), &desc, handle);
 }
 
 
