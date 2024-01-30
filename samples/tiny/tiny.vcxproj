@@ -24,6 +24,7 @@
     <ProjectGuid>{A4E0B045-7771-4C68-93CC-2F47195D17BD}</ProjectGuid>
     <RootNamespace>TensorCoreSkinning</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>tiny_100_lines</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
