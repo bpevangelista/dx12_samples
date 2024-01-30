@@ -2,16 +2,16 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34408.163
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "skinning_tensor_core", "skinning_tensor_core\skinning_tensor_core.vcxproj", "{24DD072C-96AD-4D83-9B9A-57806BF69B8B}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "triangle", "triangle\triangle.vcxproj", "{465BF3EC-D6C9-4202-833D-CE97A70D95E0}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tiny_100_lines", "tiny_100_lines\tiny_100_lines.vcxproj", "{A4E0B045-7771-4C68-93CC-2F47195D17BD}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "skinning_tensor_core", "skinning_tensor_core\skinning_tensor_core.vcxproj", "{24DD072C-96AD-4D83-9B9A-57806BF69B8B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{96C469DA-B5C5-425F-A405-797787EF2138}"
 	ProjectSection(SolutionItems) = preProject
 		..\..\README.md = ..\..\README.md
 	EndProjectSection
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "triangle", "triangle\triangle.vcxproj", "{465BF3EC-D6C9-4202-833D-CE97A70D95E0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
