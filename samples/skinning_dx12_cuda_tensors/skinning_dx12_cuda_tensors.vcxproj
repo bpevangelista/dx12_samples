@@ -133,7 +133,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\fastdx\fastdx.cpp" />
     <ClCompile Include="skinning_dx12_cuda_tensors.cpp" />
   </ItemGroup>
   <ItemGroup>

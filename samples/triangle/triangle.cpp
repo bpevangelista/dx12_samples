@@ -105,10 +105,9 @@ void initializeMesh() {
         {  0.0f,  0.8f, 0.0f, 1.0f,        0.0f, 1.0f, 0.0f, 1.0f, },
         {  0.8f, -0.8f, 0.0f, 1.0f,        0.0f, 0.0f, 1.0f, 1.0f, },
     };
-    int verticesSizeInBytes = sizeof(triangleVertices);
 
     // Create resource on D3D12_HEAP_TYPE_UPLOAD (ideally, copy to D3D12_HEAP_DEFAULT)
-    D3D12_RESOURCE_DESC vertexBufferDesc = fastdx::defaultResourceBufferDesc(verticesSizeInBytes);
+    D3D12_RESOURCE_DESC vertexBufferDesc = fastdx::defaultResourceBufferDesc(sizeof(triangleVertices));
     D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
     vertexBuffer = device->createCommittedResource(defaultHeapProps, D3D12_HEAP_FLAG_NONE, vertexBufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);
@@ -116,7 +115,7 @@ void initializeMesh() {
     // Map and Upload data
     uint8_t* vertexMapPtr = nullptr;
     vertexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&vertexMapPtr));
-    std::memcpy(vertexMapPtr, triangleVertices, verticesSizeInBytes);
+    std::memcpy(vertexMapPtr, triangleVertices, sizeof(triangleVertices));
     vertexBuffer->Unmap(0, nullptr);
 }
 
