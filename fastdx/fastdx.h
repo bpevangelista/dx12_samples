@@ -4,7 +4,6 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#include <wrl.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <dxgidebug.h>
@@ -34,7 +33,6 @@
 namespace fastdx {
     using namespace std::chrono;
     using namespace fastdx;
-    using namespace Microsoft::WRL;
 
     struct PtrDeleter {
         void operator() (IUnknown* ptr) {
@@ -80,31 +78,33 @@ namespace fastdx {
         uint32_t dxgiFactoryFlags = 0;
 
 #if defined(_DEBUG)
-        ComPtr<ID3D12Debug1> debugController;
+        dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+
+        ID3D12Debug1* debugController = nullptr;
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
             debugController->EnableDebugLayer();
             debugController->SetEnableGPUBasedValidation(true);
             debugController->SetEnableSynchronizedCommandQueueValidation(true);
-
-            dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
-
-            ComPtr<IDXGIInfoQueue> dxgiInfoQueue;
-            if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiInfoQueue)))) {
-                dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
-                dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
-            }
         }
+        SAFE_RELEASE(debugController);
+
+        IDXGIInfoQueue* dxgiInfoQueue = nullptr;
+        if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiInfoQueue)))) {
+            dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
+            dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
+        }
+        SAFE_RELEASE(dxgiInfoQueue);
 #endif
 
         HRESULT hr;
-        ComPtr<IDXGIFactory4> dxgiFactory;
+        IDXGIFactory4* dxgiFactory = nullptr;
         hr = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&dxgiFactory));
         if (SUCCEEDED(hr)) {
-            _dxgiFactory = std::shared_ptr<IDXGIFactory4>(dxgiFactory.Detach(), PtrDeleter());
+            _dxgiFactory = std::shared_ptr<IDXGIFactory4>(dxgiFactory, PtrDeleter());
         }
 
-        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult)
-            return _dxgiFactory;
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+        return _dxgiFactory;
     }
 
 
@@ -118,11 +118,11 @@ namespace fastdx {
         ID3D12CommandAllocatorPtr createCommandAllocator(D3D12_COMMAND_LIST_TYPE commandType, HRESULT* outResult = nullptr) {
 
             HRESULT hr;
-            ComPtr<ID3D12CommandAllocator> commandAllocator;
+            ID3D12CommandAllocator* commandAllocator = nullptr;
             hr = _device->CreateCommandAllocator(commandType, IID_PPV_ARGS(&commandAllocator));
 
             CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12CommandAllocatorPtr(commandAllocator.Detach(), PtrDeleter());
+            return ID3D12CommandAllocatorPtr(commandAllocator, PtrDeleter());
         }
 
 
@@ -130,11 +130,11 @@ namespace fastdx {
             ID3D12CommandAllocatorPtr allocator, HRESULT* outResult = nullptr) {
 
             HRESULT hr;
-            ComPtr<ID3D12GraphicsCommandList6> commandList;
+            ID3D12GraphicsCommandList6* commandList = nullptr;
             hr = _device->CreateCommandList(nodeMask, commandType, allocator.get(), nullptr, IID_PPV_ARGS(&commandList));
 
             CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12GraphicsCommandListPtr(commandList.Detach(), PtrDeleter());
+            return ID3D12GraphicsCommandListPtr(commandList, PtrDeleter());
         }
 
 
@@ -203,11 +203,11 @@ namespace fastdx {
             rtvHeapDesc.Flags = heapFlags;
 
             HRESULT hr;
-            ComPtr<ID3D12DescriptorHeap> heapDescriptor;
+            ID3D12DescriptorHeap* heapDescriptor = nullptr;
             hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&heapDescriptor));
 
             CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12DescriptorHeapPtr(heapDescriptor.Detach(), PtrDeleter());
+            return ID3D12DescriptorHeapPtr(heapDescriptor, PtrDeleter());
         }
 
 
@@ -223,14 +223,14 @@ namespace fastdx {
             size_t heapDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
             std::vector<ID3D12ResourcePtr> resources;
-            ComPtr<ID3D12Resource> renderTarget;
             for (uint32_t i = 0; i < swapChainDesc.BufferCount; ++i) {
+                ID3D12Resource* renderTarget = nullptr;
                 hr = swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTarget));
                 CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult, std::vector<ID3D12ResourcePtr>());
+                resources.push_back(ID3D12ResourcePtr(renderTarget, PtrDeleter()));
 
-                _device->CreateRenderTargetView(renderTarget.Get(), nullptr, heapHandle);
+                _device->CreateRenderTargetView(renderTarget, nullptr, heapHandle);
                 heapHandle.ptr += heapDescriptorSize;
-                resources.push_back(ID3D12ResourcePtr(renderTarget.Detach(), PtrDeleter()));
             }
 
             return resources;
@@ -255,10 +255,10 @@ namespace fastdx {
             std::shared_ptr<IDXGIFactory4> dxgiFactory = _getOrCreateDXIG(&hr);
             CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
 
-            ComPtr<IDXGISwapChain1> swapChain1;
+            IDXGISwapChain1* swapChain1 = nullptr;
             hr = dxgiFactory->CreateSwapChainForHwnd(
-                commandQueue.get(),     // Swap chain is linked to queue
-                hwnd,
+                commandQueue.get(),     // Link to Command Queue
+                hwnd,                   // Link to Window
                 &swapChainDesc,
                 nullptr,
                 nullptr,
@@ -266,14 +266,15 @@ namespace fastdx {
             );
             CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
 
+            IDXGISwapChain3* swapChain3 = nullptr;
+            hr = swapChain1->QueryInterface(__uuidof(IDXGISwapChain3), reinterpret_cast<void**>(&swapChain3));
+            SAFE_RELEASE(swapChain1);
+            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+
             hr = dxgiFactory->MakeWindowAssociation(hwnd, 0);
             CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
 
-            ComPtr<IDXGISwapChain3> swapChain3;
-            hr = swapChain1.As(&swapChain3);
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-
-            return IDXGISwapChainPtr(swapChain3.Detach(), PtrDeleter());
+            return IDXGISwapChainPtr(swapChain3, PtrDeleter());
         }
 
 
@@ -314,7 +315,6 @@ namespace fastdx {
     };
 
     inline std::function<void()> onWindowDestroy = nullptr;
-    //extern std::function<void()> onWindowDestroy;
 
 
     LRESULT CALLBACK _WindowProcKeyDown(HWND hWnd, WPARAM wParam, LPARAM lParam) {
@@ -430,20 +430,28 @@ namespace fastdx {
         std::shared_ptr<IDXGIFactory4> dxgiFactory = _getOrCreateDXIG(&hr);
 
         ID3D12Device2* device = nullptr;
-        ComPtr<IDXGIAdapter1> hardwareAdapter;
+        IDXGIAdapter1* hardwareAdapter = nullptr;
+        std::vector <IDXGIAdapter1*> hardwareAdapters;
+
         for (int32_t i = 0; dxgiFactory->EnumAdapters1(i, &hardwareAdapter) != DXGI_ERROR_NOT_FOUND; ++i) {
+            hardwareAdapters.push_back(hardwareAdapter);
+
             DXGI_ADAPTER_DESC1 desc;
             hardwareAdapter->GetDesc1(&desc);
-
             if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
                 continue;
             }
 
-            hr = D3D12CreateDevice(hardwareAdapter.Get(), featureLevel, IID_PPV_ARGS(&device));
+            hr = D3D12CreateDevice(hardwareAdapter, featureLevel, IID_PPV_ARGS(&device));
             if (SUCCEEDED(hr)) {
                 break;
             }
         }
+
+        for (IDXGIAdapter1* adapter : hardwareAdapters) {
+            SAFE_RELEASE(adapter);
+        }
+
         CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
 
         auto devicePtr = std::shared_ptr<ID3D12Device2>(device, PtrDeleter());
