@@ -32,6 +32,16 @@ uint64_t swapFenceWaitValue[kFrameCount] = {};
 tinygltf::Model gltfCubeModel;
 
 
+void memcpyToInterleaved(uint8_t* dest, size_t destStrideInBytes, uint8_t* src, size_t srcSizeInBytes, size_t srcStrideInBytes) {
+    assert(srcSizeInBytes % srcStrideInBytes == 0);
+    while (srcSizeInBytes > 0) {
+        memcpy(dest, src, srcStrideInBytes);
+        dest += destStrideInBytes;
+        src += srcStrideInBytes;
+        srcSizeInBytes -= srcStrideInBytes;
+    }
+}
+
 std::wstring getPathInModule(const std::wstring& filePath) {
     WCHAR modulePathBuffer[2048];
     GetModuleFileName(nullptr, modulePathBuffer, _countof(modulePathBuffer));
@@ -118,6 +128,64 @@ void initializeD3d(HWND hwnd) {
 }
 
 void loadMeshes() {
+    readModel(L"Cube.gltf", &gltfCubeModel);
+
+    std::vector<const tinygltf::Mesh*> meshes;
+    for (const auto &scene : gltfCubeModel.scenes) {
+        for (auto sceneNodeId : scene.nodes) {
+            const auto &modelNode = gltfCubeModel.nodes[sceneNodeId];
+
+            if (modelNode.mesh >= 0) {
+                auto modelMeshId = modelNode.mesh;
+                const auto& modelMesh = gltfCubeModel.meshes[modelMeshId];
+                meshes.push_back(&modelMesh);
+            }
+        }
+    }
+
+    // Vertex Buffer (XYZ, NxNyNz, UV)
+    uint8_t* vbBuffer = nullptr;
+    size_t vbBufferElements = 0;
+    size_t vbStrideInBytes = (3 + 3 + 2) * sizeof(float);
+
+    for (const auto* mesh : meshes) {
+        for (auto meshPart : mesh->primitives) {
+            for (const auto& attrib : meshPart.attributes) {
+                auto attribName = attrib.first;
+                if (attribName != "POSITION" && attribName != "NORMAL" && attribName != "TEXCOORD_0") {
+                    continue;
+                }
+
+                auto accessor = gltfCubeModel.accessors[attrib.second];
+                assert(accessor.byteOffset == 0);
+                // Create buffer on first attribute, then make sure they all have the same count
+                if (vbBuffer == nullptr) {
+                    vbBufferElements = accessor.count;
+                    vbBuffer = (uint8_t*)malloc(accessor.count * vbStrideInBytes);
+                }
+                else {
+                    assert(vbBufferElements == accessor.count);
+                }
+
+                auto bufferView = gltfCubeModel.bufferViews[accessor.bufferView];
+                uint8_t* bufferDataPtr = gltfCubeModel.buffers[bufferView.buffer].data.data();
+                uint8_t* bufferViewDataPtr = bufferDataPtr + bufferView.byteOffset;
+
+                uint8_t* vbAttribDataPtr = vbBuffer;
+                if (attribName == "NORMAL") {
+                    vbAttribDataPtr += 3 * sizeof(float); // skip position
+                }
+                else if (attribName == "TEXCOORD_0") {
+                    vbAttribDataPtr += 6 * sizeof(float); // skip position and normal
+                }
+
+                int32_t attributeStride = accessor.ByteStride(bufferView);
+                memcpyToInterleaved(vbAttribDataPtr, vbStrideInBytes, bufferViewDataPtr, bufferView.byteLength, attributeStride);
+            }
+
+            // TODO primitive.indices
+        }
+    }
 }
 
 void waitGpu(bool forceWait = false) {
