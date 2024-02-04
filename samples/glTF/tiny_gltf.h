@@ -1419,6 +1419,10 @@ class TinyGLTF {
                          const std::string &filename,
                          unsigned int check_sections = REQUIRE_VERSION);
 
+  bool LoadASCIIFromFile(Model* model, std::wstring* err, std::wstring* warn,
+      const std::wstring& filename,
+      unsigned int check_sections = REQUIRE_VERSION);
+
   ///
   /// Loads glTF ASCII asset from string(memory).
   /// `length` = strlen(str);
@@ -6620,6 +6624,23 @@ bool TinyGLTF::LoadASCIIFromFile(Model *model, std::string *err,
       static_cast<unsigned int>(data.size()), basedir, check_sections);
 
   return ret;
+}
+
+bool TinyGLTF::LoadASCIIFromFile(Model* model, std::wstring* err,
+    std::wstring* warn, const std::wstring& filename,
+    unsigned int check_sections) {
+
+    std::string cwarn, cerr;
+    bool result = LoadASCIIFromFile(model, &cerr, &cwarn, WcharToUTF8(filename), check_sections);
+
+    if (err) {
+        *err = UTF8ToWchar(cerr);
+    }
+    if (warn) {
+        *warn = UTF8ToWchar(cwarn);
+    }
+
+    return result;
 }
 
 bool TinyGLTF::LoadBinaryFromMemory(Model *model, std::string *err,
