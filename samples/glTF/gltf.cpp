@@ -1,4 +1,5 @@
 #include "../../fastdx/fastdx.h"
+#include "tiny_gltf.h"
 #include <filesystem>
 #include <fstream>
 
@@ -28,11 +29,29 @@ fastdx::ID3D12FencePtr swapFence;
 uint64_t swapFenceCounter = 0;
 uint64_t swapFenceWaitValue[kFrameCount] = {};
 
-HRESULT readShader(LPCWSTR filePath, std::vector<uint8_t>& outShaderData) {
-    WCHAR modulePathBuffer[1024];
-    GetModuleFileName(nullptr, modulePathBuffer, _countof(modulePathBuffer));
-    auto fullFilePath = std::filesystem::path(modulePathBuffer).parent_path() / filePath;
+tinygltf::Model gltfCubeModel;
 
+
+std::wstring getPathInModule(const std::wstring& filePath) {
+    WCHAR modulePathBuffer[2048];
+    GetModuleFileName(nullptr, modulePathBuffer, _countof(modulePathBuffer));
+    return std::filesystem::path(modulePathBuffer).parent_path() / filePath;
+}
+
+bool readModel(const std::wstring& filePath, tinygltf::Model* outModel) {
+    tinygltf::TinyGLTF loader;
+
+    std::wstring warn, err;
+    bool isLoaded = loader.LoadASCIIFromFile(outModel, &err, &warn, getPathInModule(filePath));
+    if (!warn.empty() || !err.empty()) {
+        OutputDebugString(warn.c_str());
+        OutputDebugString(err.c_str());
+    }
+    return isLoaded;
+}
+
+HRESULT readShader(const std::wstring& filePath, std::vector<uint8_t>& outShaderData) {
+    auto fullFilePath = getPathInModule(filePath);
     std::ifstream file(fullFilePath, std::ios::binary);
     if (file) {
         std::uintmax_t fileSize = std::filesystem::file_size(fullFilePath);
@@ -98,25 +117,7 @@ void initializeD3d(HWND hwnd) {
     pipelineState = device->createGraphicsPipelineState(pipelineDesc);
 }
 
-void initializeMesh() {
-    struct Vertex { float x, y, z, w; float r, g, b, a; };
-    Vertex triangleVertices[] = {
-        { -0.8f, -0.8f, 0.0f, 1.0f,        1.0f, 0.0f, 0.0f, 1.0f, },
-        {  0.0f,  0.8f, 0.0f, 1.0f,        0.0f, 1.0f, 0.0f, 1.0f, },
-        {  0.8f, -0.8f, 0.0f, 1.0f,        0.0f, 0.0f, 1.0f, 1.0f, },
-    };
-
-    // Create resource on D3D12_HEAP_TYPE_UPLOAD (ideally, copy to D3D12_HEAP_DEFAULT)
-    D3D12_RESOURCE_DESC vertexBufferDesc = fastdx::defaultResourceBufferDesc(sizeof(triangleVertices));
-    D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
-    vertexBuffer = device->createCommittedResource(defaultHeapProps, D3D12_HEAP_FLAG_NONE, vertexBufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);
-
-    // Map and Upload data
-    uint8_t* vertexMapPtr = nullptr;
-    vertexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&vertexMapPtr));
-    std::memcpy(vertexMapPtr, triangleVertices, sizeof(triangleVertices));
-    vertexBuffer->Unmap(0, nullptr);
+void loadMeshes() {
 }
 
 void waitGpu(bool forceWait = false) {
@@ -193,7 +194,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         waitGpu(true);
     };
     initializeD3d(hwnd);
-    initializeMesh();
+    loadMeshes();
 
     return fastdx::runMainLoop(nullptr, draw);
 }

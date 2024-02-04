@@ -37,6 +37,10 @@
 #ifndef TINY_GLTF_H_
 #define TINY_GLTF_H_
 
+#define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#define TINYGLTF_NO_STB_IMAGE_WRITE
+
 #include <array>
 #include <cassert>
 #include <cmath>  // std::fabs
