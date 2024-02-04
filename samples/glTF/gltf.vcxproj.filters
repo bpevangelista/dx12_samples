@@ -20,4 +20,18 @@
       <Filter>assets</Filter>
     </FxCompile>
   </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="..\_assets\gltf\cube\Cube.bin">
+      <Filter>assets</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="..\_assets\gltf\cube\Cube.gltf">
+      <Filter>assets</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="..\_assets\gltf\cube\Cube_BaseColor.png">
+      <Filter>assets</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="..\_assets\gltf\cube\Cube_MetallicRoughness.png">
+      <Filter>assets</Filter>
+    </CopyFileToFolders>
+  </ItemGroup>
 </Project>
