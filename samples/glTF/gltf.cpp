@@ -194,8 +194,28 @@ void loadMeshes() {
         vbBuffersNumElements.push_back(vbNumElements);
     }
 
-    for (uint8_t* vbDataPtr : vbBuffers) {
-        SAFE_FREE(vbDataPtr);
+    // Render only first mesh
+    if (vbBuffers.size() > 0) {
+        // Only use first VB
+        uint8_t* vbDataPtr = vbBuffers[0];
+        int32_t vbNumElements = vbBuffersNumElements[0];
+        int32_t vbSizeInBytes = vbNumElements * vbStrideInBytes;
+
+        // Create resource on D3D12_HEAP_TYPE_UPLOAD (ideally, copy to D3D12_HEAP_DEFAULT)
+        D3D12_RESOURCE_DESC vertexBufferDesc = fastdx::defaultResourceBufferDesc(vbSizeInBytes);
+        D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
+        vertexBuffer = device->createCommittedResource(defaultHeapProps, D3D12_HEAP_FLAG_NONE, vertexBufferDesc,
+            D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);
+
+        // Map and Upload data
+        uint8_t* vertexMapPtr = nullptr;
+        vertexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&vertexMapPtr));
+        std::memcpy(vertexMapPtr, vbDataPtr, vbSizeInBytes);
+        vertexBuffer->Unmap(0, nullptr);
+
+        for (uint8_t* vbDataPtr : vbBuffers) {
+            SAFE_FREE(vbDataPtr);
+        }
     }
 }
 
