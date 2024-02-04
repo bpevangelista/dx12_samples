@@ -28,7 +28,7 @@ fastdx::ID3D12FencePtr swapFence;
 uint64_t swapFenceCounter = 0;
 uint64_t swapFenceWaitValue[kFrameCount] = {};
 
-HRESULT readShader(LPCWSTR filePath, std::vector<uint8_t>& outShaderData) {
+HRESULT readShader(const std::wstring& filePath, std::vector<uint8_t>& outShaderData) {
     WCHAR modulePathBuffer[1024];
     GetModuleFileName(nullptr, modulePathBuffer, _countof(modulePathBuffer));
     auto fullFilePath = std::filesystem::path(modulePathBuffer).parent_path() / filePath;
@@ -98,7 +98,7 @@ void initializeD3d(HWND hwnd) {
     pipelineState = device->createGraphicsPipelineState(pipelineDesc);
 }
 
-void initializeMesh() {
+void createTriangle() {
     struct Vertex { float x, y, z, w; float r, g, b, a; };
     Vertex triangleVertices[] = {
         { -0.8f, -0.8f, 0.0f, 1.0f,        1.0f, 0.0f, 0.0f, 1.0f, },
@@ -193,7 +193,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         waitGpu(true);
     };
     initializeD3d(hwnd);
-    initializeMesh();
+    createTriangle();
 
     return fastdx::runMainLoop(nullptr, draw);
 }
