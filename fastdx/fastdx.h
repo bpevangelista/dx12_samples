@@ -14,6 +14,10 @@
 #include <stdint.h>
 #include <vector>
 
+#ifndef SAFE_FREE
+#define SAFE_FREE(p) { if (p) { free(p); (p)=nullptr; } }
+#endif
+
 #ifndef SAFE_RELEASE
 #define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p)=nullptr; } }
 #endif

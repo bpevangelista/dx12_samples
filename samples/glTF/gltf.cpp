@@ -143,12 +143,15 @@ void loadMeshes() {
         }
     }
 
-    // Vertex Buffer (XYZ, NxNyNz, UV)
-    uint8_t* vbBuffer = nullptr;
-    size_t vbBufferElements = 0;
-    size_t vbStrideInBytes = (3 + 3 + 2) * sizeof(float);
+    // Vertex Buffers (XYZ, NxNyNz, UV)
+    std::vector<uint8_t*> vbBuffers;
+    std::vector<int32_t> vbBuffersNumElements;
+    int32_t vbStrideInBytes = (3 + 3 + 2) * sizeof(float);
 
     for (const auto* mesh : meshes) {
+        uint8_t* vbDataPtr = nullptr;
+        int32_t vbNumElements = 0;
+
         for (auto meshPart : mesh->primitives) {
             for (const auto& attrib : meshPart.attributes) {
                 auto attribName = attrib.first;
@@ -158,20 +161,21 @@ void loadMeshes() {
 
                 auto accessor = gltfCubeModel.accessors[attrib.second];
                 assert(accessor.byteOffset == 0);
+
                 // Create buffer on first attribute, then make sure they all have the same count
-                if (vbBuffer == nullptr) {
-                    vbBufferElements = accessor.count;
-                    vbBuffer = (uint8_t*)malloc(accessor.count * vbStrideInBytes);
+                if (vbDataPtr == nullptr) {
+                    vbNumElements = static_cast<int32_t>(accessor.count);
+                    vbDataPtr = (uint8_t*)malloc(accessor.count * vbStrideInBytes);
                 }
                 else {
-                    assert(vbBufferElements == accessor.count);
+                    assert(vbNumElements == accessor.count);
                 }
 
                 auto bufferView = gltfCubeModel.bufferViews[accessor.bufferView];
                 uint8_t* bufferDataPtr = gltfCubeModel.buffers[bufferView.buffer].data.data();
                 uint8_t* bufferViewDataPtr = bufferDataPtr + bufferView.byteOffset;
 
-                uint8_t* vbAttribDataPtr = vbBuffer;
+                uint8_t* vbAttribDataPtr = vbDataPtr;
                 if (attribName == "NORMAL") {
                     vbAttribDataPtr += 3 * sizeof(float); // skip position
                 }
@@ -185,6 +189,13 @@ void loadMeshes() {
 
             // TODO primitive.indices
         }
+
+        vbBuffers.push_back(vbDataPtr);
+        vbBuffersNumElements.push_back(vbNumElements);
+    }
+
+    for (uint8_t* vbDataPtr : vbBuffers) {
+        SAFE_FREE(vbDataPtr);
     }
 }
 
