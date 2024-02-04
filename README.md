@@ -1,9 +1,9 @@
 # DX12 Samples with FastDX
 
-Tiny DX12 C++ Utility Wrapper & Samples.
+FastDX is a Header-Only D3D12 Light-Wrapper for Clean and Quick Prototyping.
 - Clear Screen (100 lines), Draw Triangle (200 lines), glTF (wip), DX12+CUDA (wip).
 
-### Window Handling and Main Loop:
+#### Window Handling and Main Loop:
 ```cpp
 void update(double elapsedTimeMs) {}
 void draw() {}
@@ -17,7 +17,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 }
 ```
 
-### Initialization Blob
+#### Initialization
 ```cpp
 void initializeD3d(HWND hwnd) {
     // Create a device and queue to dispatch command lists
@@ -45,7 +45,7 @@ void initializeD3d(HWND hwnd) {
 }
 ```
 
-### Assets Load Blob
+#### Load Assets
 ```cpp
 void loadAssets() {
     // Read VS, PS and Create their root signature
@@ -80,7 +80,7 @@ void loadAssets() {
 }
 ```
 
-### Drawing
+#### Draw
 ```cpp
 void draw() {
     // Get and reset allocator for current frame, then point command list to it
