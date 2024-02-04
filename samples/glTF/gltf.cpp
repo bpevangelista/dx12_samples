@@ -21,7 +21,8 @@ fastdx::ID3D12RootSignaturePtr pipelineRootSignature;
 std::vector<fastdx::ID3D12ResourcePtr> renderTargets;
 fastdx::ID3D12ResourcePtr depthStencilTarget;
 std::vector<uint8_t> vertexShader, pixelShader;
-fastdx::ID3D12ResourcePtr vertexBuffer;
+fastdx::ID3D12ResourcePtr vertexBuffer, indexBuffer;
+D3D12_INDEX_BUFFER_VIEW indexBufferView;
 
 int32_t frameIndex = 0;
 HANDLE fenceEvent;
@@ -127,6 +128,21 @@ void initializeD3d(HWND hwnd) {
     pipelineState = device->createGraphicsPipelineState(pipelineDesc);
 }
 
+fastdx::ID3D12ResourcePtr createBufferResource(uint8_t* dataPtr, int32_t sizeInBytes) {
+    // Create resource on D3D12_HEAP_TYPE_UPLOAD (ideally, copy to D3D12_HEAP_DEFAULT)
+    D3D12_RESOURCE_DESC vertexBufferDesc = fastdx::defaultResourceBufferDesc(sizeInBytes);
+    D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
+    fastdx::ID3D12ResourcePtr resource = device->createCommittedResource(defaultHeapProps, D3D12_HEAP_FLAG_NONE, vertexBufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);
+
+    // Map and Upload data
+    uint8_t* dataMapPtr = nullptr;
+    resource->Map(0, nullptr, reinterpret_cast<void**>(&dataMapPtr));
+    std::memcpy(dataMapPtr, dataPtr, sizeInBytes);
+    resource->Unmap(0, nullptr);
+    return resource;
+}
+
 void loadMeshes() {
     readModel(L"Cube.gltf", &gltfCubeModel);
 
@@ -148,11 +164,15 @@ void loadMeshes() {
     std::vector<int32_t> vbBuffersNumElements;
     int32_t vbStrideInBytes = (3 + 3 + 2) * sizeof(float);
 
-    for (const auto* mesh : meshes) {
-        uint8_t* vbDataPtr = nullptr;
-        int32_t vbNumElements = 0;
+    std::vector<uint8_t*> ibBuffers;
+    std::vector<int32_t> ibBuffersNumElements;
+    int32_t ibStrideInBytes = sizeof(uint16_t);
 
+    for (const auto* mesh : meshes) {
         for (auto meshPart : mesh->primitives) {
+            uint8_t* vbDataPtr = nullptr;
+            int32_t vbNumElements = 0;
+
             for (const auto& attrib : meshPart.attributes) {
                 auto attribName = attrib.first;
                 if (attribName != "POSITION" && attribName != "NORMAL" && attribName != "TEXCOORD_0") {
@@ -172,8 +192,7 @@ void loadMeshes() {
                 }
 
                 auto bufferView = gltfCubeModel.bufferViews[accessor.bufferView];
-                uint8_t* bufferDataPtr = gltfCubeModel.buffers[bufferView.buffer].data.data();
-                uint8_t* bufferViewDataPtr = bufferDataPtr + bufferView.byteOffset;
+                uint8_t* bufferDataPtr = gltfCubeModel.buffers[bufferView.buffer].data.data() + bufferView.byteOffset;
 
                 uint8_t* vbAttribDataPtr = vbDataPtr;
                 if (attribName == "NORMAL") {
@@ -183,39 +202,40 @@ void loadMeshes() {
                     vbAttribDataPtr += 6 * sizeof(float); // skip position and normal
                 }
 
-                int32_t attributeStride = accessor.ByteStride(bufferView);
-                memcpyToInterleaved(vbAttribDataPtr, vbStrideInBytes, bufferViewDataPtr, bufferView.byteLength, attributeStride);
+                int32_t vbStrideInBytes = accessor.ByteStride(bufferView);
+                memcpyToInterleaved(vbAttribDataPtr, vbStrideInBytes, bufferDataPtr, bufferView.byteLength, vbStrideInBytes);
             }
 
-            // TODO primitive.indices
-        }
+            auto indexAccessor = gltfCubeModel.accessors[meshPart.indices];
+            auto bufferView = gltfCubeModel.bufferViews[indexAccessor.bufferView];
+            uint8_t* bufferDataPtr = gltfCubeModel.buffers[bufferView.buffer].data.data() + bufferView.byteOffset;
 
-        vbBuffers.push_back(vbDataPtr);
-        vbBuffersNumElements.push_back(vbNumElements);
+            int32_t ibStrideInBytes = indexAccessor.ByteStride(bufferView);
+            assert(ibStrideInBytes == sizeof(uint16_t));
+            int32_t ibNumElements = static_cast<int32_t>(indexAccessor.count);
+            uint8_t* ibDataPtr = (uint8_t*)malloc(ibNumElements * ibStrideInBytes);
+
+            memcpy(ibDataPtr, bufferDataPtr, ibNumElements * ibStrideInBytes);
+
+            ibBuffers.push_back(ibDataPtr);
+            ibBuffersNumElements.push_back(ibNumElements);
+            vbBuffers.push_back(vbDataPtr);
+            vbBuffersNumElements.push_back(vbNumElements);
+        }
     }
 
-    // Render only first mesh
-    if (vbBuffers.size() > 0) {
-        // Only use first VB
-        uint8_t* vbDataPtr = vbBuffers[0];
-        int32_t vbNumElements = vbBuffersNumElements[0];
-        int32_t vbSizeInBytes = vbNumElements * vbStrideInBytes;
+    // Must have at least one meshPart with vertex and index buffer
+    assert(vbBuffers.size() > 0 && ibBuffers.size() > 0);
+    vertexBuffer = createBufferResource(vbBuffers[0], vbBuffersNumElements[0] * vbStrideInBytes);
+    indexBuffer = createBufferResource(ibBuffers[0], ibBuffersNumElements[0] * ibStrideInBytes);
+    indexBufferView = fastdx::defaultIndexBufferView(indexBuffer->GetGPUVirtualAddress(),
+        ibBuffersNumElements[0] * ibStrideInBytes, DXGI_FORMAT_R16_UINT);
 
-        // Create resource on D3D12_HEAP_TYPE_UPLOAD (ideally, copy to D3D12_HEAP_DEFAULT)
-        D3D12_RESOURCE_DESC vertexBufferDesc = fastdx::defaultResourceBufferDesc(vbSizeInBytes);
-        D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
-        vertexBuffer = device->createCommittedResource(defaultHeapProps, D3D12_HEAP_FLAG_NONE, vertexBufferDesc,
-            D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);
-
-        // Map and Upload data
-        uint8_t* vertexMapPtr = nullptr;
-        vertexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&vertexMapPtr));
-        std::memcpy(vertexMapPtr, vbDataPtr, vbSizeInBytes);
-        vertexBuffer->Unmap(0, nullptr);
-
-        for (uint8_t* vbDataPtr : vbBuffers) {
-            SAFE_FREE(vbDataPtr);
-        }
+    for (uint8_t* vbDataPtr : vbBuffers) {
+        SAFE_FREE(vbDataPtr);
+    }
+    for (uint8_t* ibDataPtr : ibBuffers) {
+        SAFE_FREE(ibDataPtr);
     }
 }
 
@@ -258,7 +278,6 @@ void draw() {
         D3D12_RECT scissorRect = { 0, 0, windowProp.width, windowProp.height };
 
         commandList->SetPipelineState(pipelineState.get());
-        commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         commandList->RSSetViewports(1, &viewport);
         commandList->RSSetScissorRects(1, &scissorRect);
         commandList->OMSetRenderTargets(1, &frameRtvHandle, FALSE, &dsvHandle);
@@ -267,10 +286,12 @@ void draw() {
         commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH,
             kClearDepth.DepthStencil.Depth, kClearDepth.DepthStencil.Stencil, 0, nullptr);
 
-        // Draw Triangle
+        // Draw Mesh
+        commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        commandList->IASetIndexBuffer(&indexBufferView);
         commandList->SetGraphicsRootSignature(pipelineRootSignature.get());
         commandList->SetGraphicsRootShaderResourceView(0, vertexBuffer->GetGPUVirtualAddress());
-        commandList->DrawInstanced(3, 1, 0, 0);
+        commandList->DrawIndexedInstanced(indexBufferView.SizeInBytes / sizeof(uint16_t), 1, 0, 0, 0);
 
         // RenderTarget->Present barrier
         transitionBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;

@@ -508,6 +508,16 @@ namespace fastdx {
     inline DEFAULT_D3D12_DEPTH_STENCIL_DESC defaultDepthStencilDesc() { return DEFAULT_D3D12_DEPTH_STENCIL_DESC(); }
 
 
+    inline D3D12_INDEX_BUFFER_VIEW defaultIndexBufferView(
+        D3D12_GPU_VIRTUAL_ADDRESS BufferLocation, UINT SizeInBytes, DXGI_FORMAT Format = DXGI_FORMAT_R16_UINT) {
+        return D3D12_INDEX_BUFFER_VIEW{
+            BufferLocation,
+            SizeInBytes,
+            Format
+        };
+    }
+
+
     struct DEFAULT_D3D12_RASTERIZER_DESC : public D3D12_RASTERIZER_DESC {
         DEFAULT_D3D12_RASTERIZER_DESC() {
             FillMode = D3D12_FILL_MODE_SOLID;
@@ -528,7 +538,7 @@ namespace fastdx {
 
     inline D3D12_RESOURCE_DESC defaultResourceTexDesc(D3D12_RESOURCE_DIMENSION dimension, uint32_t width,
         uint32_t height, uint16_t depth, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags) {
-        return D3D12_RESOURCE_DESC{
+        return D3D12_RESOURCE_DESC {
             dimension,
             0,                                      // 4MB for MSAA, 64KB otherwise
             static_cast<uint64_t>(width),
@@ -567,7 +577,7 @@ namespace fastdx {
             Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         }
     };
-    inline D3D12_SHADER_RESOURCE_VIEW_DESC defaultShaderResourceDesc(D3D12_SRV_DIMENSION dimension) {
+    inline D3D12_SHADER_RESOURCE_VIEW_DESC defaultShaderResourceViewDesc(D3D12_SRV_DIMENSION dimension) {
         return DEFAULT_D3D12_SHADER_RESOURCE_VIEW_DESC(dimension);
     }
 
