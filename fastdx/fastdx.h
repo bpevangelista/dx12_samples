@@ -14,6 +14,131 @@
 #include <stdint.h>
 #include <vector>
 
+
+///
+/// Header
+///
+namespace fastdx {
+    class D3D12DeviceWrapper;
+    typedef std::shared_ptr<D3D12DeviceWrapper> D3D12DeviceWrapperPtr;
+
+    typedef std::shared_ptr<ID3D12CommandAllocator> ID3D12CommandAllocatorPtr;
+    typedef std::shared_ptr<ID3D12CommandQueue> ID3D12CommandQueuePtr;
+    typedef std::shared_ptr<ID3D12DescriptorHeap> ID3D12DescriptorHeapPtr;
+    typedef std::shared_ptr<ID3D12Device2> ID3D12DevicePtr;
+    typedef std::shared_ptr<ID3D12Fence> ID3D12FencePtr;
+    typedef std::shared_ptr<ID3D12GraphicsCommandList6> ID3D12GraphicsCommandListPtr;
+    typedef std::shared_ptr<ID3D12PipelineState> ID3D12PipelineStatePtr;
+    typedef std::shared_ptr<ID3D12Resource> ID3D12ResourcePtr;
+    typedef std::shared_ptr<ID3D12RootSignature> ID3D12RootSignaturePtr;
+    typedef std::shared_ptr<ID3DBlob> ID3DBlobPtr;
+    typedef std::shared_ptr<IDXGISwapChain3> IDXGISwapChainPtr;
+
+    struct WindowProperties {
+        int32_t width = 1280;
+        int32_t height = 720;
+        int32_t showMode = SW_SHOW;
+        WCHAR title[64] = L"fastdx";
+        bool isFullScreen = false;
+    };
+    inline std::function<void()> onWindowDestroy = nullptr;
+
+
+    ///
+    /// Window helpers
+    ///
+    HWND createWindow(const WindowProperties& properties, HRESULT* outResult = nullptr);
+    int runMainLoop(std::function<void(double)> updateFunction = nullptr,
+        std::function<void()> drawFunction = nullptr);
+
+
+    ///
+    /// Device Wrapper
+    ///
+    D3D12DeviceWrapperPtr createDevice(D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_12_2,
+        HRESULT* outResult = nullptr);
+
+    class D3D12DeviceWrapper {
+    public:
+        D3D12DeviceWrapper(ID3D12DevicePtr device) : _device(device) {}
+
+        inline ID3D12DevicePtr d3dDevice() const { return _device; }
+
+        ID3D12CommandAllocatorPtr createCommandAllocator(D3D12_COMMAND_LIST_TYPE commandType,
+            HRESULT* outResult = nullptr);
+
+        ID3D12GraphicsCommandListPtr createCommandList(uint32_t nodeMask, D3D12_COMMAND_LIST_TYPE commandType,
+            ID3D12CommandAllocatorPtr allocator, HRESULT* outResult = nullptr);
+
+        ID3D12CommandQueuePtr createCommandQueue(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult = nullptr);
+
+        ID3D12ResourcePtr createCommittedResource(const D3D12_HEAP_PROPERTIES& heapProperties,
+            D3D12_HEAP_FLAGS heapFlags, const D3D12_RESOURCE_DESC& desc, D3D12_RESOURCE_STATES initialState,
+            const D3D12_CLEAR_VALUE* optOptimalClearValue, HRESULT* outResult = nullptr);
+
+        ID3D12FencePtr createFence(uint64_t initialValue, D3D12_FENCE_FLAGS flags, HRESULT* outResult = nullptr);
+
+        ID3D12PipelineStatePtr createGraphicsPipelineState(const D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc,
+            HRESULT* outResult = nullptr);
+
+        ID3D12DescriptorHeapPtr createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
+            HRESULT* outResult = nullptr);
+
+        std::vector<ID3D12ResourcePtr> createRenderTargetViews(IDXGISwapChainPtr swapChain,
+            ID3D12DescriptorHeapPtr heap, HRESULT* outResult = nullptr);
+
+        ID3D12RootSignaturePtr createRootSignature(uint32_t nodeMask, const void* data, size_t dataSizeInBytes,
+            HRESULT* outResult = nullptr);
+
+        IDXGISwapChainPtr createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue,
+            const DXGI_SWAP_CHAIN_DESC1& swapChainDesc, HWND hwnd, HRESULT* outResult = nullptr);
+
+        void createDepthStencilView(ID3D12ResourcePtr resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc,
+            D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
+        void createRenderTargetView(ID3D12ResourcePtr resource, const D3D12_RENDER_TARGET_VIEW_DESC& desc,
+            D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
+        void createShaderResourceView(ID3D12ResourcePtr resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc,
+            D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
+    private:
+        ID3D12DevicePtr _device;
+    };
+
+
+    ///
+    /// D3D12 Utilities
+    ///
+    D3D12_BLEND_DESC defaultBlendDesc();
+
+    D3D12_DEPTH_STENCIL_DESC defaultDepthStencilDesc();
+
+    D3D12_INDEX_BUFFER_VIEW defaultIndexBufferView(D3D12_GPU_VIRTUAL_ADDRESS BufferLocation, UINT SizeInBytes,
+        DXGI_FORMAT Format = DXGI_FORMAT_R16_UINT);
+
+    D3D12_RASTERIZER_DESC defaultRasterizerDesc();
+
+    D3D12_RESOURCE_DESC defaultResourceTexDesc(D3D12_RESOURCE_DIMENSION dimension, uint32_t width,
+        uint32_t height, uint16_t depth, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags);
+
+    D3D12_RESOURCE_DESC defaultResourceBufferDesc(uint32_t width,
+        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC defaultShaderResourceViewDesc(D3D12_SRV_DIMENSION dimension);
+
+    DXGI_SWAP_CHAIN_DESC1 defaultSwapChainDesc(const HWND hwnd, uint32_t bufferCount = 2,
+        DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM);
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC defaultGraphicsPipelineDesc(DXGI_FORMAT renderTargetFormat);
+};
+
+
+///
+/// Implementation
+///
+#if defined(FASTDX_IMPLEMENTATION)
+
 #ifndef SAFE_FREE
 #define SAFE_FREE(p) { if (p) { free(p); (p)=nullptr; } }
 #endif
@@ -30,14 +155,10 @@
 #define CHECK_ASSIGN_RETURN_IF_FAILED(HRESULTVAR, OUTVAR) { if (_checkFailedAndAssign(HRESULTVAR, OUTVAR)) { return nullptr; } }
 #endif
 
-
 ///
-/// Internals
+/// Common
 ///
 namespace fastdx {
-    using namespace std::chrono;
-    using namespace fastdx;
-
     struct PtrDeleter {
         void operator() (IUnknown* ptr) {
             SAFE_RELEASE(ptr);
@@ -54,22 +175,124 @@ namespace fastdx {
 
 
 ///
-/// Main Wrapper
+/// Window Implementation
 ///
 namespace fastdx {
-    typedef std::shared_ptr<ID3D12CommandAllocator> ID3D12CommandAllocatorPtr;
-    typedef std::shared_ptr<ID3D12CommandQueue> ID3D12CommandQueuePtr;
-    typedef std::shared_ptr<ID3D12DescriptorHeap> ID3D12DescriptorHeapPtr;
-    typedef std::shared_ptr<ID3D12Device2> ID3D12DevicePtr;
-    typedef std::shared_ptr<ID3D12Fence> ID3D12FencePtr;
-    typedef std::shared_ptr<ID3D12GraphicsCommandList6> ID3D12GraphicsCommandListPtr;
-    typedef std::shared_ptr<ID3D12PipelineState> ID3D12PipelineStatePtr;
-    typedef std::shared_ptr<ID3D12Resource> ID3D12ResourcePtr;
-    typedef std::shared_ptr<ID3D12RootSignature> ID3D12RootSignaturePtr;
-    typedef std::shared_ptr<ID3DBlob> ID3DBlobPtr;
-    typedef std::shared_ptr<IDXGISwapChain3> IDXGISwapChainPtr;
+    using namespace std::chrono;
+
+    LRESULT CALLBACK _WindowProcKeyDown(HWND hWnd, WPARAM wParam, LPARAM lParam) {
+        switch (wParam) {
+        case VK_ESCAPE:
+            SendMessage(hWnd, WM_CLOSE, 0, 0);
+            break;
+        }
+
+        return S_OK;
+    }
 
 
+    LRESULT CALLBACK _WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+        switch (msg) {
+        case WM_PAINT:
+            break;
+
+        case WM_SIZE:
+            break;
+
+        case WM_KEYDOWN:
+            _WindowProcKeyDown(hWnd, wParam, lParam);
+            break;
+
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            break;
+        }
+
+        return DefWindowProc(hWnd, msg, wParam, lParam);
+    }
+
+
+    HWND createWindow(const WindowProperties& properties, HRESULT* outResult) {
+        HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(nullptr);
+
+        WNDCLASSEX wc = { 0 };
+        wc.cbSize = sizeof(WNDCLASSEX);
+        wc.style = properties.isFullScreen ? 0 : CS_HREDRAW | CS_VREDRAW;
+        wc.lpfnWndProc = (WNDPROC)_WindowProc;
+        wc.hInstance = hInstance;
+        wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wc.lpszClassName = L"fastdx";
+        RegisterClassEx(&wc);
+
+        HWND hwnd = CreateWindow(
+            wc.lpszClassName,
+            properties.title,
+            properties.isFullScreen ? WS_POPUP : WS_OVERLAPPEDWINDOW,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            properties.width,
+            properties.height,
+            nullptr,
+            nullptr,
+            hInstance,
+            0);
+
+        if (!hwnd) {
+            HRESULT result = HRESULT_FROM_WIN32(GetLastError());
+            UnregisterClass(wc.lpszClassName, nullptr);
+            CHECK_ASSIGN_RETURN_IF_FAILED(result, outResult);
+        }
+
+        ShowWindow(hwnd, properties.showMode);
+
+        return hwnd;
+    }
+
+
+    int runMainLoop(std::function<void(double)> updateFunction, std::function<void()> drawFunction) {
+        MSG msg = {};
+        const double kDesiredUpdateTimeMs = 1.0 / 60.0;
+        double remainingElapsedTimeMs = 0.0;
+
+        while (msg.message != WM_QUIT) {
+            if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+
+            static high_resolution_clock::time_point lastClockTime = high_resolution_clock::now();
+            high_resolution_clock::time_point currentClockTime = high_resolution_clock::now();
+
+            double elapsedTimeMs = duration<double, std::milli>(currentClockTime - lastClockTime).count();
+            elapsedTimeMs += remainingElapsedTimeMs;
+            lastClockTime = currentClockTime;
+
+            if (updateFunction) {
+                int updateCycles = (int)(elapsedTimeMs / kDesiredUpdateTimeMs);
+                remainingElapsedTimeMs = max(0.0, elapsedTimeMs - updateCycles * kDesiredUpdateTimeMs);
+
+                for (int32_t i = 0; i < updateCycles; ++i) {
+                    updateFunction(kDesiredUpdateTimeMs);
+                }
+            }
+
+            if (drawFunction) {
+                drawFunction();
+            }
+        }
+
+        fastdx::onWindowDestroy();
+
+        return static_cast<int>(msg.wParam);
+    }
+};
+
+
+///
+/// D3D12DeviceWrapper Implementation
+///
+namespace fastdx {
     std::shared_ptr<IDXGIFactory4> _getOrCreateDXIG(HRESULT* outResult) {
         static std::shared_ptr<IDXGIFactory4> _dxgiFactory = nullptr;
         if (_dxgiFactory) {
@@ -112,324 +335,7 @@ namespace fastdx {
     }
 
 
-    class D3D12DeviceWrapper {
-    public:
-        D3D12DeviceWrapper(ID3D12DevicePtr device) :
-            _device(device) {}
-
-        ID3D12DevicePtr d3dDevice() const { return _device; }
-
-        ID3D12CommandAllocatorPtr createCommandAllocator(D3D12_COMMAND_LIST_TYPE commandType, HRESULT* outResult = nullptr) {
-
-            HRESULT hr;
-            ID3D12CommandAllocator* commandAllocator = nullptr;
-            hr = _device->CreateCommandAllocator(commandType, IID_PPV_ARGS(&commandAllocator));
-
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12CommandAllocatorPtr(commandAllocator, PtrDeleter());
-        }
-
-
-        ID3D12GraphicsCommandListPtr createCommandList(uint32_t nodeMask, D3D12_COMMAND_LIST_TYPE commandType,
-            ID3D12CommandAllocatorPtr allocator, HRESULT* outResult = nullptr) {
-
-            HRESULT hr;
-            ID3D12GraphicsCommandList6* commandList = nullptr;
-            hr = _device->CreateCommandList(nodeMask, commandType, allocator.get(), nullptr, IID_PPV_ARGS(&commandList));
-
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12GraphicsCommandListPtr(commandList, PtrDeleter());
-        }
-
-
-        ID3D12CommandQueuePtr createCommandQueue(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult = nullptr) {
-            D3D12_COMMAND_QUEUE_DESC queueDesc = {};
-            queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-            queueDesc.Type = type;
-
-            ID3D12CommandQueue* commandQueue = nullptr;
-            HRESULT hr = _device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue));
-
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12CommandQueuePtr(commandQueue, PtrDeleter());
-        }
-
-
-        ID3D12ResourcePtr createCommittedResource(
-            const D3D12_HEAP_PROPERTIES& heapProperties,
-            D3D12_HEAP_FLAGS heapFlags,
-            const D3D12_RESOURCE_DESC& desc,
-            D3D12_RESOURCE_STATES initialState,
-            const D3D12_CLEAR_VALUE* optOptimalClearValue,
-            HRESULT* outResult = nullptr) {
-
-            HRESULT hr;
-            ID3D12Resource* resource;
-            hr = _device->CreateCommittedResource(&heapProperties, heapFlags, &desc, initialState, optOptimalClearValue,
-                IID_PPV_ARGS(&resource));
-
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12ResourcePtr(resource, PtrDeleter());
-        }
-
-
-        ID3D12FencePtr createFence(uint64_t initialValue, D3D12_FENCE_FLAGS flags, HRESULT* outResult = nullptr) {
-
-            ID3D12Fence1* fence = nullptr;
-            HRESULT hr = _device->CreateFence(initialValue, flags, IID_PPV_ARGS(&fence));
-
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12FencePtr(fence, PtrDeleter());
-        }
-
-
-        ID3D12PipelineStatePtr createGraphicsPipelineState(const D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc,
-            HRESULT* outResult = nullptr) {
-            ID3D12PipelineState* pipelineState = nullptr;
-            HRESULT hr = _device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pipelineState));
-
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12PipelineStatePtr(pipelineState, PtrDeleter());
-        }
-
-
-        ID3D12DescriptorHeapPtr createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
-            HRESULT* outResult = nullptr) {
-
-            D3D12_DESCRIPTOR_HEAP_FLAGS heapFlags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-            if (heapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || heapType == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER) {
-                heapFlags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-            }
-
-            D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-            rtvHeapDesc.NumDescriptors = count;
-            rtvHeapDesc.Type = heapType;
-            rtvHeapDesc.Flags = heapFlags;
-
-            HRESULT hr;
-            ID3D12DescriptorHeap* heapDescriptor = nullptr;
-            hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&heapDescriptor));
-
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12DescriptorHeapPtr(heapDescriptor, PtrDeleter());
-        }
-
-
-        std::vector<ID3D12ResourcePtr> createRenderTargetViews(
-            IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap, HRESULT* outResult = nullptr) {
-
-            HRESULT hr;
-            DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-            hr = swapChain->GetDesc1(&swapChainDesc);
-            CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult, std::vector<ID3D12ResourcePtr>());
-
-            D3D12_CPU_DESCRIPTOR_HANDLE heapHandle = heap->GetCPUDescriptorHandleForHeapStart();
-            size_t heapDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-            std::vector<ID3D12ResourcePtr> resources;
-            for (uint32_t i = 0; i < swapChainDesc.BufferCount; ++i) {
-                ID3D12Resource* renderTarget = nullptr;
-                hr = swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTarget));
-                CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult, std::vector<ID3D12ResourcePtr>());
-                resources.push_back(ID3D12ResourcePtr(renderTarget, PtrDeleter()));
-
-                _device->CreateRenderTargetView(renderTarget, nullptr, heapHandle);
-                heapHandle.ptr += heapDescriptorSize;
-            }
-
-            return resources;
-        }
-
-
-        ID3D12RootSignaturePtr createRootSignature(uint32_t nodeMask, const void* data, size_t dataSizeInBytes,
-            HRESULT* outResult = nullptr) {
-            ID3D12RootSignature* rootSignature = nullptr;
-            HRESULT hr = _device->CreateRootSignature(nodeMask, data, dataSizeInBytes, IID_PPV_ARGS(&rootSignature));
-
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-            return ID3D12RootSignaturePtr(rootSignature, PtrDeleter());
-
-        }
-
-
-        IDXGISwapChainPtr createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue,
-            const DXGI_SWAP_CHAIN_DESC1& swapChainDesc, HWND hwnd, HRESULT* outResult = nullptr) {
-
-            HRESULT hr;
-            std::shared_ptr<IDXGIFactory4> dxgiFactory = _getOrCreateDXIG(&hr);
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-
-            IDXGISwapChain1* swapChain1 = nullptr;
-            hr = dxgiFactory->CreateSwapChainForHwnd(
-                commandQueue.get(),     // Link to Command Queue
-                hwnd,                   // Link to Window
-                &swapChainDesc,
-                nullptr,
-                nullptr,
-                &swapChain1
-            );
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-
-            IDXGISwapChain3* swapChain3 = nullptr;
-            hr = swapChain1->QueryInterface(__uuidof(IDXGISwapChain3), reinterpret_cast<void**>(&swapChain3));
-            SAFE_RELEASE(swapChain1);
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-
-            hr = dxgiFactory->MakeWindowAssociation(hwnd, 0);
-            CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
-
-            return IDXGISwapChainPtr(swapChain3, PtrDeleter());
-        }
-
-
-        void createDepthStencilView(ID3D12ResourcePtr resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc,
-            D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-            _device->CreateDepthStencilView(resource.get(), &desc, handle);
-        }
-
-
-        void createRenderTargetView(ID3D12ResourcePtr resource, const D3D12_RENDER_TARGET_VIEW_DESC& desc,
-            D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-            _device->CreateRenderTargetView(resource.get(), &desc, handle);
-        }
-
-
-        void createShaderResourceView(ID3D12ResourcePtr resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc,
-            D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-            _device->CreateShaderResourceView(resource.get(), &desc, handle);
-        }
-
-    private:
-        ID3D12DevicePtr _device;
-    };
-    typedef std::shared_ptr<D3D12DeviceWrapper> D3D12DeviceWrapperPtr;
-}
-
-
-///
-/// Window Handling
-///
-namespace fastdx {
-    struct WindowProperties {
-        int32_t width = 1280;
-        int32_t height = 720;
-        int32_t showMode = SW_SHOW;
-        WCHAR title[64] = L"fastdx";
-        bool isFullScreen = false;
-    };
-
-    inline std::function<void()> onWindowDestroy = nullptr;
-
-
-    LRESULT CALLBACK _WindowProcKeyDown(HWND hWnd, WPARAM wParam, LPARAM lParam) {
-        switch (wParam) {
-        case VK_ESCAPE:
-            SendMessage(hWnd, WM_CLOSE, 0, 0);
-            break;
-        }
-
-        return S_OK;
-    }
-
-
-    LRESULT CALLBACK _WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-        switch (msg) {
-        case WM_PAINT:
-            break;
-
-        case WM_SIZE:
-            break;
-
-        case WM_KEYDOWN:
-            _WindowProcKeyDown(hWnd, wParam, lParam);
-            break;
-
-        case WM_DESTROY:
-            PostQuitMessage(0);
-            break;
-        }
-
-        return DefWindowProc(hWnd, msg, wParam, lParam);
-    }
-
-
-    HWND createWindow(const WindowProperties& properties, HRESULT* outResult = nullptr) {
-        HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(nullptr);
-
-        WNDCLASSEX wc = { 0 };
-        wc.cbSize = sizeof(WNDCLASSEX);
-        wc.style = properties.isFullScreen ? 0 : CS_HREDRAW | CS_VREDRAW;
-        wc.lpfnWndProc = (WNDPROC)_WindowProc;
-        wc.hInstance = hInstance;
-        wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-        wc.lpszClassName = L"fastdx";
-        RegisterClassEx(&wc);
-
-        HWND hwnd = CreateWindow(
-            wc.lpszClassName,
-            properties.title,
-            properties.isFullScreen ? WS_POPUP : WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            properties.width,
-            properties.height,
-            nullptr,
-            nullptr,
-            hInstance,
-            0);
-
-        if (!hwnd) {
-            HRESULT result = HRESULT_FROM_WIN32(GetLastError());
-            UnregisterClass(wc.lpszClassName, nullptr);
-            CHECK_ASSIGN_RETURN_IF_FAILED(result, outResult);
-        }
-
-        ShowWindow(hwnd, properties.showMode);
-
-        return hwnd;
-    }
-
-
-    int runMainLoop(std::function<void(double)> updateFunction = nullptr, std::function<void()> drawFunction = nullptr) {
-        MSG msg = {};
-        const double kDesiredUpdateTimeMs = 1.0 / 60.0;
-        double remainingElapsedTimeMs = 0.0;
-
-        while (msg.message != WM_QUIT) {
-            if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
-            }
-
-            static high_resolution_clock::time_point lastClockTime = high_resolution_clock::now();
-            high_resolution_clock::time_point currentClockTime = high_resolution_clock::now();
-
-            double elapsedTimeMs = duration<double, std::milli>(currentClockTime - lastClockTime).count();
-            elapsedTimeMs += remainingElapsedTimeMs;
-            lastClockTime = currentClockTime;
-
-            if (updateFunction) {
-                int updateCycles = (int)(elapsedTimeMs / kDesiredUpdateTimeMs);
-                remainingElapsedTimeMs = max(0.0, elapsedTimeMs - updateCycles * kDesiredUpdateTimeMs);
-
-                for (int32_t i = 0; i < updateCycles; ++i) {
-                    updateFunction(kDesiredUpdateTimeMs);
-                }
-            }
-
-            if (drawFunction) {
-                drawFunction();
-            }
-        }
-
-        fastdx::onWindowDestroy();
-
-        return static_cast<int>(msg.wParam);
-    }
-
-
-    D3D12DeviceWrapperPtr createDevice(D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_12_2, HRESULT* outResult = nullptr) {
+    D3D12DeviceWrapperPtr createDevice(D3D_FEATURE_LEVEL featureLevel, HRESULT* outResult) {
         HRESULT hr = E_FAIL;
         std::shared_ptr<IDXGIFactory4> dxgiFactory = _getOrCreateDXIG(&hr);
 
@@ -461,11 +367,189 @@ namespace fastdx {
         auto devicePtr = std::shared_ptr<ID3D12Device2>(device, PtrDeleter());
         return D3D12DeviceWrapperPtr(new D3D12DeviceWrapper(devicePtr));
     }
+
+
+    ID3D12CommandAllocatorPtr D3D12DeviceWrapper::createCommandAllocator(D3D12_COMMAND_LIST_TYPE commandType, HRESULT* outResult) {
+
+        HRESULT hr;
+        ID3D12CommandAllocator* commandAllocator = nullptr;
+        hr = _device->CreateCommandAllocator(commandType, IID_PPV_ARGS(&commandAllocator));
+
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+        return ID3D12CommandAllocatorPtr(commandAllocator, PtrDeleter());
+    }
+
+
+    ID3D12GraphicsCommandListPtr D3D12DeviceWrapper::createCommandList(uint32_t nodeMask, D3D12_COMMAND_LIST_TYPE commandType,
+        ID3D12CommandAllocatorPtr allocator, HRESULT* outResult) {
+
+        HRESULT hr;
+        ID3D12GraphicsCommandList6* commandList = nullptr;
+        hr = _device->CreateCommandList(nodeMask, commandType, allocator.get(), nullptr, IID_PPV_ARGS(&commandList));
+
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+        return ID3D12GraphicsCommandListPtr(commandList, PtrDeleter());
+    }
+
+
+    ID3D12CommandQueuePtr D3D12DeviceWrapper::createCommandQueue(D3D12_COMMAND_LIST_TYPE type, HRESULT* outResult) {
+        D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+        queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+        queueDesc.Type = type;
+
+        ID3D12CommandQueue* commandQueue = nullptr;
+        HRESULT hr = _device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue));
+
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+        return ID3D12CommandQueuePtr(commandQueue, PtrDeleter());
+    }
+
+
+    ID3D12ResourcePtr D3D12DeviceWrapper::createCommittedResource(const D3D12_HEAP_PROPERTIES& heapProperties,
+        D3D12_HEAP_FLAGS heapFlags, const D3D12_RESOURCE_DESC& desc, D3D12_RESOURCE_STATES initialState,
+        const D3D12_CLEAR_VALUE* optOptimalClearValue, HRESULT* outResult) {
+
+        HRESULT hr;
+        ID3D12Resource* resource;
+        hr = _device->CreateCommittedResource(&heapProperties, heapFlags, &desc, initialState, optOptimalClearValue,
+            IID_PPV_ARGS(&resource));
+
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+        return ID3D12ResourcePtr(resource, PtrDeleter());
+    }
+
+
+    ID3D12FencePtr D3D12DeviceWrapper::createFence(uint64_t initialValue, D3D12_FENCE_FLAGS flags, HRESULT* outResult) {
+
+        ID3D12Fence1* fence = nullptr;
+        HRESULT hr = _device->CreateFence(initialValue, flags, IID_PPV_ARGS(&fence));
+
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+        return ID3D12FencePtr(fence, PtrDeleter());
+    }
+
+
+    ID3D12PipelineStatePtr D3D12DeviceWrapper::createGraphicsPipelineState(const D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc,
+        HRESULT* outResult) {
+        ID3D12PipelineState* pipelineState = nullptr;
+        HRESULT hr = _device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pipelineState));
+
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+        return ID3D12PipelineStatePtr(pipelineState, PtrDeleter());
+    }
+
+
+    ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
+        HRESULT* outResult) {
+
+        D3D12_DESCRIPTOR_HEAP_FLAGS heapFlags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+        if (heapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || heapType == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER) {
+            heapFlags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        }
+
+        D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+        rtvHeapDesc.NumDescriptors = count;
+        rtvHeapDesc.Type = heapType;
+        rtvHeapDesc.Flags = heapFlags;
+
+        HRESULT hr;
+        ID3D12DescriptorHeap* heapDescriptor = nullptr;
+        hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&heapDescriptor));
+
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+        return ID3D12DescriptorHeapPtr(heapDescriptor, PtrDeleter());
+    }
+
+
+    std::vector<ID3D12ResourcePtr> D3D12DeviceWrapper::createRenderTargetViews(
+        IDXGISwapChainPtr swapChain, ID3D12DescriptorHeapPtr heap, HRESULT* outResult) {
+
+        HRESULT hr;
+        DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+        hr = swapChain->GetDesc1(&swapChainDesc);
+        CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult, std::vector<ID3D12ResourcePtr>());
+
+        D3D12_CPU_DESCRIPTOR_HANDLE heapHandle = heap->GetCPUDescriptorHandleForHeapStart();
+        size_t heapDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+        std::vector<ID3D12ResourcePtr> resources;
+        for (uint32_t i = 0; i < swapChainDesc.BufferCount; ++i) {
+            ID3D12Resource* renderTarget = nullptr;
+            hr = swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTarget));
+            CHECK_ASSIGN_RETURN_IF_FAILED_(hr, outResult, std::vector<ID3D12ResourcePtr>());
+            resources.push_back(ID3D12ResourcePtr(renderTarget, PtrDeleter()));
+
+            _device->CreateRenderTargetView(renderTarget, nullptr, heapHandle);
+            heapHandle.ptr += heapDescriptorSize;
+        }
+
+        return resources;
+    }
+
+
+    ID3D12RootSignaturePtr D3D12DeviceWrapper::createRootSignature(uint32_t nodeMask, const void* data, size_t dataSizeInBytes,
+        HRESULT* outResult) {
+        ID3D12RootSignature* rootSignature = nullptr;
+        HRESULT hr = _device->CreateRootSignature(nodeMask, data, dataSizeInBytes, IID_PPV_ARGS(&rootSignature));
+
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+        return ID3D12RootSignaturePtr(rootSignature, PtrDeleter());
+
+    }
+
+
+    IDXGISwapChainPtr D3D12DeviceWrapper::createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue,
+        const DXGI_SWAP_CHAIN_DESC1& swapChainDesc, HWND hwnd, HRESULT* outResult) {
+
+        HRESULT hr;
+        std::shared_ptr<IDXGIFactory4> dxgiFactory = _getOrCreateDXIG(&hr);
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+
+        IDXGISwapChain1* swapChain1 = nullptr;
+        hr = dxgiFactory->CreateSwapChainForHwnd(
+            commandQueue.get(),     // Link to Command Queue
+            hwnd,                   // Link to Window
+            &swapChainDesc,
+            nullptr,
+            nullptr,
+            &swapChain1
+        );
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+
+        IDXGISwapChain3* swapChain3 = nullptr;
+        hr = swapChain1->QueryInterface(__uuidof(IDXGISwapChain3), reinterpret_cast<void**>(&swapChain3));
+        SAFE_RELEASE(swapChain1);
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+
+        hr = dxgiFactory->MakeWindowAssociation(hwnd, 0);
+        CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
+
+        return IDXGISwapChainPtr(swapChain3, PtrDeleter());
+    }
+
+
+    void D3D12DeviceWrapper::createDepthStencilView(ID3D12ResourcePtr resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc,
+        D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+        _device->CreateDepthStencilView(resource.get(), &desc, handle);
+    }
+
+
+    void D3D12DeviceWrapper::createRenderTargetView(ID3D12ResourcePtr resource, const D3D12_RENDER_TARGET_VIEW_DESC& desc,
+        D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+        _device->CreateRenderTargetView(resource.get(), &desc, handle);
+    }
+
+
+    void D3D12DeviceWrapper::createShaderResourceView(ID3D12ResourcePtr resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc,
+        D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+        _device->CreateShaderResourceView(resource.get(), &desc, handle);
+    }
 };
+#endif // FASTDX_IMPLEMENTATION
 
 
 ///
-/// D3D12 Helpers
+/// INLINED D3D12 Utilities
 ///
 namespace fastdx {
 
@@ -505,11 +589,11 @@ namespace fastdx {
                 D3D12_COMPARISON_FUNC_ALWAYS };
         }
     };
-    inline DEFAULT_D3D12_DEPTH_STENCIL_DESC defaultDepthStencilDesc() { return DEFAULT_D3D12_DEPTH_STENCIL_DESC(); }
+    inline D3D12_DEPTH_STENCIL_DESC defaultDepthStencilDesc() { return DEFAULT_D3D12_DEPTH_STENCIL_DESC(); }
 
 
     inline D3D12_INDEX_BUFFER_VIEW defaultIndexBufferView(
-        D3D12_GPU_VIRTUAL_ADDRESS BufferLocation, UINT SizeInBytes, DXGI_FORMAT Format = DXGI_FORMAT_R16_UINT) {
+        D3D12_GPU_VIRTUAL_ADDRESS BufferLocation, UINT SizeInBytes, DXGI_FORMAT Format) {
         return D3D12_INDEX_BUFFER_VIEW{
             BufferLocation,
             SizeInBytes,
@@ -553,8 +637,7 @@ namespace fastdx {
     }
 
 
-    inline D3D12_RESOURCE_DESC defaultResourceBufferDesc(uint32_t width,
-        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE) {
+    inline D3D12_RESOURCE_DESC defaultResourceBufferDesc(uint32_t width, D3D12_RESOURCE_FLAGS flags) {
         return D3D12_RESOURCE_DESC{
             D3D12_RESOURCE_DIMENSION_BUFFER,
             0,                                      // 64KB alignment
@@ -583,7 +666,7 @@ namespace fastdx {
 
 
     struct DEFAULT_DXGI_SWAP_CHAIN_DESC1 : public DXGI_SWAP_CHAIN_DESC1 {
-        DEFAULT_DXGI_SWAP_CHAIN_DESC1(const HWND hwnd, uint32_t bufferCount = 2, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM) {
+        DEFAULT_DXGI_SWAP_CHAIN_DESC1(const HWND hwnd, uint32_t bufferCount, DXGI_FORMAT format) {
             RECT windowRect;
             GetWindowRect(hwnd, &windowRect);
             Width = windowRect.right - windowRect.left;
@@ -599,7 +682,7 @@ namespace fastdx {
             Flags = 0;
         }
     };
-    inline DXGI_SWAP_CHAIN_DESC1 defaultSwapChainDesc(const HWND hwnd, uint32_t bufferCount = 2, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM) {
+    inline DXGI_SWAP_CHAIN_DESC1 defaultSwapChainDesc(const HWND hwnd, uint32_t bufferCount, DXGI_FORMAT format) {
         return DEFAULT_DXGI_SWAP_CHAIN_DESC1(hwnd, bufferCount, format);
     }
 
