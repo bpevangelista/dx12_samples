@@ -1,3 +1,4 @@
+#define FASTDX_IMPLEMENTATION
 #include "../../fastdx/fastdx.h"
 
 const int32_t kFrameCount = 3;

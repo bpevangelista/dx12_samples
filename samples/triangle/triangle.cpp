@@ -1,3 +1,4 @@
+#define FASTDX_IMPLEMENTATION
 #include "../../fastdx/fastdx.h"
 #include <filesystem>
 #include <fstream>

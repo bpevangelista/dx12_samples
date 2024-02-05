@@ -1,3 +1,4 @@
+#define FASTDX_IMPLEMENTATION
 #include "../../fastdx/fastdx.h"
 #include "tiny_gltf.h"
 #include <filesystem>
@@ -116,8 +117,8 @@ void initializeD3d(HWND hwnd) {
     fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 
     // Read VS, PS and Create root signature for shader
-    readShader(L"simple_vs.cso", vertexShader);
-    readShader(L"simple_ps.cso", pixelShader);
+    readShader(L"textured_vs.cso", vertexShader);
+    readShader(L"textured_ps.cso", pixelShader);
     pipelineRootSignature = device->createRootSignature(0, vertexShader.data(), vertexShader.size());
 
     // Create a pipeline state
@@ -290,7 +291,9 @@ void draw() {
         commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         commandList->IASetIndexBuffer(&indexBufferView);
         commandList->SetGraphicsRootSignature(pipelineRootSignature.get());
-        commandList->SetGraphicsRootShaderResourceView(0, vertexBuffer->GetGPUVirtualAddress());
+        //commandList->SetGraphicsRootConstantBufferView(0, nullptr);
+        commandList->SetGraphicsRootShaderResourceView(1, vertexBuffer->GetGPUVirtualAddress());
+        //commandList->SetGraphicsRootShaderResourceView(2, textureBuffer->GetGPUVirtualAddress());
         commandList->DrawIndexedInstanced(indexBufferView.SizeInBytes / sizeof(uint16_t), 1, 0, 0, 0);
 
         // RenderTarget->Present barrier
