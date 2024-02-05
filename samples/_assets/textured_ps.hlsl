@@ -17,10 +17,7 @@ SamplerState linearSampler : register(s0);
 
 struct v2f {
     float4 position     : SV_POSITION;
-    float3 normalW      : TEXCOORD0;
-    float3 eyeVecW      : TEXCOORD1;
-    float3 light0VecW   : TEXCOORD2;
-    float2 uv0          : TEXCOORD3;
+    float2 uv0          : TEXCOORD0;
 };
 
 [RootSignature(ROOT_SIG)]

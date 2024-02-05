@@ -15,22 +15,16 @@
 struct Constants {
     float4x4 matW;
     float4x4 matVP;
-    float3 eyePos;
-    float3 light0Pos;
 };
 
 struct a2v {
     float3 position;
-    float3 normal;
     float2 uv0;
 };
 
 struct v2f {
     float4 position     : SV_POSITION;
-    float3 normalW      : TEXCOORD0;
-    float3 eyeVecW      : TEXCOORD1;
-    float3 light0VecW   : TEXCOORD2;
-    float2 uv0          : TEXCOORD3;
+    float2 uv0          : TEXCOORD0;
 };
 
 ConstantBuffer<Constants> Globals : register(b0);
@@ -42,14 +36,7 @@ v2f main(uint vid : SV_VertexID) {
     v2f OUT;
 
     float4 positionW = mul(float4(IN.position, 1.0f), Globals.matW);
-    float3 normalW = mul(IN.normal, float3x3(Globals.matW[0].xyz, Globals.matW[1].xyz, Globals.matW[2].xyz));
-    float3 eyeVec = normalize(Globals.eyePos - positionW.xyz);
-    float3 light0Vec = normalize(Globals.light0Pos - positionW.xyz);
-
     OUT.position = mul(positionW, Globals.matVP);
-    OUT.normalW = normalW;
-    OUT.eyeVecW = eyeVec;
-    OUT.light0VecW = light0Vec;
     OUT.uv0 = IN.uv0;
 
     return OUT;
