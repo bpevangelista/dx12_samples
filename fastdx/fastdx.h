@@ -7,7 +7,6 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <dxgidebug.h>
-
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -101,6 +100,8 @@ namespace fastdx {
 
         void createShaderResourceView(ID3D12ResourcePtr resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc,
             D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
+        uint32_t getDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE descriptorHeapType);
 
     private:
         ID3D12DevicePtr _device;
@@ -544,6 +545,11 @@ namespace fastdx {
         D3D12_CPU_DESCRIPTOR_HANDLE handle) {
         _device->CreateShaderResourceView(resource.get(), &desc, handle);
     }
+
+    inline uint32_t D3D12DeviceWrapper::getDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE descriptorHeapType) {
+        return _device->GetDescriptorHandleIncrementSize(descriptorHeapType);
+    }
+
 };
 #endif // FASTDX_IMPLEMENTATION
 
