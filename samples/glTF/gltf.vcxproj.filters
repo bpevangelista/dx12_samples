@@ -13,14 +13,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="..\_assets\simple_ps.hlsl">
-      <Filter>assets</Filter>
-    </FxCompile>
-    <FxCompile Include="..\_assets\simple_vs.hlsl">
-      <Filter>assets</Filter>
-    </FxCompile>
-  </ItemGroup>
-  <ItemGroup>
     <CopyFileToFolders Include="..\_assets\gltf\cube\Cube.bin">
       <Filter>assets</Filter>
     </CopyFileToFolders>
@@ -33,5 +25,13 @@
     <CopyFileToFolders Include="..\_assets\gltf\cube\Cube_MetallicRoughness.png">
       <Filter>assets</Filter>
     </CopyFileToFolders>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\_assets\textured_vs.hlsl">
+      <Filter>assets</Filter>
+    </FxCompile>
+    <FxCompile Include="..\_assets\textured_ps.hlsl">
+      <Filter>assets</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
