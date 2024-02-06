@@ -140,8 +140,8 @@ void draw() {
     static size_t heapDescriptorSize = device->getDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     D3D12_CPU_DESCRIPTOR_HANDLE frameRtvHandle = { rtvHandle.ptr + frameIndex * heapDescriptorSize };
 
-    static D3D12_RESOURCE_BARRIER transitionBarrier = { D3D12_RESOURCE_BARRIER_TYPE_TRANSITION, D3D12_RESOURCE_BARRIER_FLAG_NONE,
-        nullptr,  D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES };
+    static D3D12_RESOURCE_BARRIER transitionBarrier = { D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+        D3D12_RESOURCE_BARRIER_FLAG_NONE, nullptr,  D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES };
 
     // Get and reset allocator for current frame, then point command list to it
     auto commandAllocator = commandAllocators[frameIndex];
