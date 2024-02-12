@@ -92,6 +92,9 @@ namespace fastdx {
         IDXGISwapChainPtr createSwapChainForHwnd(ID3D12CommandQueuePtr commandQueue,
             const DXGI_SWAP_CHAIN_DESC1& swapChainDesc, HWND hwnd, HRESULT* outResult = nullptr);
 
+        void createConstantBufferView(const D3D12_CONSTANT_BUFFER_VIEW_DESC& desc,
+            D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
         void createDepthStencilView(ID3D12ResourcePtr resource, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc,
             D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
@@ -526,6 +529,12 @@ namespace fastdx {
         CHECK_ASSIGN_RETURN_IF_FAILED(hr, outResult);
 
         return IDXGISwapChainPtr(swapChain3, PtrDeleter());
+    }
+
+
+    void D3D12DeviceWrapper::createConstantBufferView(const D3D12_CONSTANT_BUFFER_VIEW_DESC& desc,
+        D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+        _device->CreateConstantBufferView(&desc, handle);
     }
 
 
