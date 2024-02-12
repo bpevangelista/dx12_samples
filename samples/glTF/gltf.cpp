@@ -1,6 +1,7 @@
 #define FASTDX_IMPLEMENTATION
 #include "../../fastdx/fastdx.h"
 #include "tiny_gltf.h"
+#include <DirectXMath.h>
 #include <filesystem>
 #include <fstream>
 
@@ -22,7 +23,7 @@ fastdx::ID3D12RootSignaturePtr pipelineRootSignature;
 std::vector<fastdx::ID3D12ResourcePtr> renderTargets;
 fastdx::ID3D12ResourcePtr depthStencilTarget;
 std::vector<uint8_t> vertexShader, pixelShader;
-fastdx::ID3D12ResourcePtr vertexBuffer, indexBuffer;
+fastdx::ID3D12ResourcePtr vertexBuffer, indexBuffer, constantBuffer;
 D3D12_INDEX_BUFFER_VIEW indexBufferView;
 
 int32_t frameIndex = 0;
@@ -31,7 +32,13 @@ fastdx::ID3D12FencePtr swapFence;
 uint64_t swapFenceCounter = 0;
 uint64_t swapFenceWaitValue[kFrameCount] = {};
 
+struct alignas(1024) SceneGlobals {
+    DirectX::XMMATRIX matW;
+    DirectX::XMMATRIX matVP;
+};
+
 tinygltf::Model gltfCubeModel;
+SceneGlobals sceneGlobals = {};
 
 
 void memcpyToInterleaved(uint8_t* dest, size_t destStrideInBytes, uint8_t* src, size_t srcSizeInBytes, size_t srcStrideInBytes) {
@@ -78,12 +85,15 @@ void initializeD3d(HWND hwnd) {
     device = fastdx::createDevice(D3D_FEATURE_LEVEL_12_2);
     commandQueue = device->createCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
 
+    // Create heaps for render target views, depth stencil and shader parameters
+    swapChainRtvHeap = device->createDescriptorHeap(kFrameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    depthStencilViewHeap = device->createDescriptorHeap(1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
     // Create a triple frame buffer swap chain for window
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = fastdx::defaultSwapChainDesc(hwnd, kFrameCount, kFrameFormat);
     swapChain = device->createSwapChainForHwnd(commandQueue, swapChainDesc, hwnd);
 
-    // Create a heap of descriptors, then them fill with swap chain render targets desc
-    swapChainRtvHeap = device->createHeapDescriptor(kFrameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    // Create swap chain render targets views in heap
     renderTargets = device->createRenderTargetViews(swapChain, swapChainRtvHeap);
 
     // Create depth stencil resource
@@ -94,12 +104,10 @@ void initializeD3d(HWND hwnd) {
     depthStencilTarget = device->createCommittedResource(defaultHeapProps, D3D12_HEAP_FLAG_NONE,
         depthStencilResourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &kClearDepth);
 
-    // Create heap descriptor with depth stencil desc
+    // Create depth stencil render target view in heap
     D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
     depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
     depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-
-    depthStencilViewHeap = device->createHeapDescriptor(1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     device->createDepthStencilView(depthStencilTarget, depthStencilDesc,
         depthStencilViewHeap->GetCPUDescriptorHandleForHeapStart());
 
@@ -129,11 +137,11 @@ void initializeD3d(HWND hwnd) {
     pipelineState = device->createGraphicsPipelineState(pipelineDesc);
 }
 
-fastdx::ID3D12ResourcePtr createBufferResource(uint8_t* dataPtr, int32_t sizeInBytes) {
+fastdx::ID3D12ResourcePtr createBufferResource(void* dataPtr, int32_t sizeInBytes) {
     // Create resource on D3D12_HEAP_TYPE_UPLOAD (ideally, copy to D3D12_HEAP_DEFAULT)
-    D3D12_RESOURCE_DESC vertexBufferDesc = fastdx::defaultResourceBufferDesc(sizeInBytes);
-    D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
-    fastdx::ID3D12ResourcePtr resource = device->createCommittedResource(defaultHeapProps, D3D12_HEAP_FLAG_NONE, vertexBufferDesc,
+    D3D12_RESOURCE_DESC bufferDesc = fastdx::defaultResourceBufferDesc(sizeInBytes);
+    D3D12_HEAP_PROPERTIES uploadHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
+    fastdx::ID3D12ResourcePtr resource = device->createCommittedResource(uploadHeapProps, D3D12_HEAP_FLAG_NONE, bufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);
 
     // Map and Upload data
@@ -142,6 +150,15 @@ fastdx::ID3D12ResourcePtr createBufferResource(uint8_t* dataPtr, int32_t sizeInB
     std::memcpy(dataMapPtr, dataPtr, sizeInBytes);
     resource->Unmap(0, nullptr);
     return resource;
+}
+
+void loadScene() {
+    uint32_t cbSizeInBytes = sizeof(sceneGlobals);
+    sceneGlobals.matW = DirectX::XMMatrixIdentity();
+    sceneGlobals.matVP = DirectX::XMMatrixIdentity();
+
+    // Create constant buffer resource and its view for shader
+    constantBuffer = createBufferResource(&sceneGlobals, cbSizeInBytes);
 }
 
 void loadMeshes() {
@@ -291,10 +308,8 @@ void draw() {
         commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         commandList->IASetIndexBuffer(&indexBufferView);
         commandList->SetGraphicsRootSignature(pipelineRootSignature.get());
-        //commandList->SetGraphicsRootConstantBufferView(0, nullptr);
+        commandList->SetGraphicsRootConstantBufferView(0, constantBuffer->GetGPUVirtualAddress());
         commandList->SetGraphicsRootShaderResourceView(1, vertexBuffer->GetGPUVirtualAddress());
-        //commandList->SetGraphicsRootShaderResourceView(2, textureBuffer->GetGPUVirtualAddress());
-        commandList->DrawIndexedInstanced(indexBufferView.SizeInBytes / sizeof(uint16_t), 1, 0, 0, 0);
 
         // RenderTarget->Present barrier
         transitionBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -318,6 +333,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     };
     initializeD3d(hwnd);
     loadMeshes();
+    loadScene();
 
     return fastdx::runMainLoop(nullptr, draw);
 }
