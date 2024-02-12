@@ -53,7 +53,7 @@ void initializeD3d(HWND hwnd) {
     swapChain = device->createSwapChainForHwnd(commandQueue, swapChainDesc, hwnd);
 
     // Create a heap of descriptors, then them fill with swap chain render targets desc
-    swapChainRtvHeap = device->createHeapDescriptor(kFrameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    swapChainRtvHeap = device->createDescriptorHeap(kFrameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     renderTargets = device->createRenderTargetViews(swapChain, swapChainRtvHeap);
 
     // Create depth stencil resource
@@ -69,7 +69,7 @@ void initializeD3d(HWND hwnd) {
     depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
     depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 
-    depthStencilViewHeap = device->createHeapDescriptor(1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    depthStencilViewHeap = device->createDescriptorHeap(1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     device->createDepthStencilView(depthStencilTarget, depthStencilDesc,
         depthStencilViewHeap->GetCPUDescriptorHandleForHeapStart());
 

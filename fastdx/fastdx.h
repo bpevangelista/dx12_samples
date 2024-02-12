@@ -80,7 +80,7 @@ namespace fastdx {
         ID3D12PipelineStatePtr createGraphicsPipelineState(const D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc,
             HRESULT* outResult = nullptr);
 
-        ID3D12DescriptorHeapPtr createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
+        ID3D12DescriptorHeapPtr createDescriptorHeap(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
             HRESULT* outResult = nullptr);
 
         std::vector<ID3D12ResourcePtr> createRenderTargetViews(IDXGISwapChainPtr swapChain,
@@ -440,7 +440,7 @@ namespace fastdx {
     }
 
 
-    ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createHeapDescriptor(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
+    ID3D12DescriptorHeapPtr D3D12DeviceWrapper::createDescriptorHeap(int32_t count, D3D12_DESCRIPTOR_HEAP_TYPE heapType,
         HRESULT* outResult) {
 
         D3D12_DESCRIPTOR_HEAP_FLAGS heapFlags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;

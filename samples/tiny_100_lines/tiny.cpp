@@ -28,7 +28,7 @@ void initializeD3d(HWND hwnd) {
     swapChain = device->createSwapChainForHwnd(commandQueue, swapChainDesc, hwnd);
 
     // Create a heap of descriptors, then them fill with swap chain render targets desc
-    swapChainRtvHeap = device->createHeapDescriptor(kFrameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    swapChainRtvHeap = device->createDescriptorHeap(kFrameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     renderTargets = device->createRenderTargetViews(swapChain, swapChainRtvHeap);
 
     // Create one command allocator per frame buffer
