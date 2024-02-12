@@ -18,6 +18,7 @@ fastdx::ID3D12GraphicsCommandListPtr commandList;
 fastdx::IDXGISwapChainPtr swapChain;
 fastdx::ID3D12DescriptorHeapPtr swapChainRtvHeap;
 fastdx::ID3D12DescriptorHeapPtr depthStencilViewHeap;
+fastdx::ID3D12DescriptorHeapPtr shaderTexturesViewHeap;
 fastdx::ID3D12PipelineStatePtr pipelineState;
 fastdx::ID3D12RootSignaturePtr pipelineRootSignature;
 std::vector<fastdx::ID3D12ResourcePtr> renderTargets;
@@ -88,6 +89,7 @@ void initializeD3d(HWND hwnd) {
     // Create heaps for render target views, depth stencil and shader parameters
     swapChainRtvHeap = device->createDescriptorHeap(kFrameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     depthStencilViewHeap = device->createDescriptorHeap(1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    shaderTexturesViewHeap = device->createDescriptorHeap(32, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     // Create a triple frame buffer swap chain for window
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = fastdx::defaultSwapChainDesc(hwnd, kFrameCount, kFrameFormat);
@@ -257,6 +259,10 @@ void loadMeshes() {
     }
 }
 
+void loadMaterials() {
+
+}
+
 void waitGpu(bool forceWait = false) {
     // Queue always signal increasing counter values
     commandQueue->Signal(swapFence.get(), swapFenceCounter);
@@ -311,6 +317,12 @@ void draw() {
         commandList->SetGraphicsRootConstantBufferView(0, constantBuffer->GetGPUVirtualAddress());
         commandList->SetGraphicsRootShaderResourceView(1, vertexBuffer->GetGPUVirtualAddress());
 
+        // Textures must use descriptor table
+        ID3D12DescriptorHeap* shaderTexturesHeaps[] = { shaderTexturesViewHeap.get() };
+        commandList->SetDescriptorHeaps(1, shaderTexturesHeaps);
+        commandList->SetGraphicsRootDescriptorTable(2, shaderTexturesViewHeap->GetGPUDescriptorHandleForHeapStart());
+        commandList->DrawIndexedInstanced(indexBufferView.SizeInBytes / sizeof(uint16_t), 1, 0, 0, 0);
+
         // RenderTarget->Present barrier
         transitionBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         transitionBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
@@ -333,6 +345,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     };
     initializeD3d(hwnd);
     loadMeshes();
+    loadMaterials();
     loadScene();
 
     return fastdx::runMainLoop(nullptr, draw);
