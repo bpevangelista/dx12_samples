@@ -343,7 +343,40 @@ void loadMeshes() {
 }
 
 void loadMaterials() {
+    for (const auto& texture : gltfCubeModel.samplers) {
+        // Handle Samplers
+    }
 
+    D3D12_CPU_DESCRIPTOR_HANDLE texturesHandle = texturesViewHeap->GetCPUDescriptorHandleForHeapStart();
+    size_t heapDescriptorSize = device->getDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    std::map<int32_t, fastdx::ID3D12ResourcePtr> imagesMap;
+    for (const auto& texture : gltfCubeModel.textures) {
+        int32_t imageId = texture.source;
+        if (imagesMap.find(imageId) == imagesMap.end()) {
+            tinygltf::Image& image = gltfCubeModel.images[imageId];
+            assert(image.bits == 8);
+            assert(image.component == 3 || image.component == 4); // R8G8B8 or R8G8B8A8
+
+            // Create texture buffer
+            auto imageDesc = fastdxu::resourceTexDesc(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+                image.width, image.height, 1, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_NONE);
+
+            void* imageDataPtr = &image.image[0];
+            int32_t rowSizeInBytes = image.width * image.component;
+            int32_t imageSizeInBytes = rowSizeInBytes * image.height;
+            auto imageBuffer = createTextureBufferResource(imageDesc, imageDataPtr, rowSizeInBytes, imageSizeInBytes);
+            textureBuffers.push_back(imageBuffer);
+
+            // Create texture view descriptor
+            D3D12_SHADER_RESOURCE_VIEW_DESC imageViewDesc = fastdxu::shaderResourceViewDesc(
+                D3D12_SRV_DIMENSION_TEXTURE2D, imageDesc.Format);
+            imageViewDesc.Texture2D.MipLevels = imageDesc.MipLevels + 1;
+
+            device->createShaderResourceView(imageBuffer, imageViewDesc, texturesHandle);
+            texturesHandle.ptr += heapDescriptorSize;
+        }
+    }
 }
 
 void draw() {
@@ -405,9 +438,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         waitGpu(true);
     };
     initializeD3d(hwnd);
-    loadMeshes();
-    loadMaterials();
-    loadScene();
+
+    startCommandList();
+    {
+        loadMeshes();
+        loadMaterials();
+        loadScene();
+    }
+    executeCommandList();
+    waitGpu(true);
 
     return fastdx::runMainLoop(nullptr, draw);
 }
