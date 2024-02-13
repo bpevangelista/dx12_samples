@@ -141,6 +141,34 @@ void initializeD3d(HWND hwnd) {
     pipelineState = device->createGraphicsPipelineState(pipelineDesc);
 }
 
+void startCommandList() {
+    // Get and reset allocator for current frame, then point command list to it
+    auto commandAllocator = commandAllocators[frameIndex];
+    commandAllocator->Reset();
+    commandList->Reset(commandAllocator.get(), nullptr);
+}
+
+void executeCommandList() {
+    // Close and dispatch command
+    commandList->Close();
+    ID3D12CommandList* commandLists[] = { commandList.get() };
+    commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
+}
+
+void waitGpu(bool forceWait = false) {
+    // Queue always signal increasing counter values
+    commandQueue->Signal(swapFence.get(), swapFenceCounter);
+    swapFenceWaitValue[frameIndex] = swapFenceCounter++;
+
+    // Wait if next frame not ready
+    int32_t nextFrameIndex = swapChain->GetCurrentBackBufferIndex();
+    if (swapFence->GetCompletedValue() < swapFenceWaitValue[nextFrameIndex] || forceWait) {
+        swapFence->SetEventOnCompletion(swapFenceWaitValue[nextFrameIndex], fenceEvent);
+        WaitForSingleObjectEx(fenceEvent, INFINITE, FALSE);
+    }
+    frameIndex = nextFrameIndex;
+}
+
 fastdx::ID3D12ResourcePtr createBufferResource(void* dataPtr, int32_t sizeInBytes) {
     // Create D3D12 resource used for CPU to GPU upload
     D3D12_RESOURCE_DESC bufferDesc = fastdxu::resourceBufferDesc(sizeInBytes);
@@ -268,34 +296,6 @@ void loadMeshes() {
 
 void loadMaterials() {
 
-}
-
-void startCommandList() {
-    // Get and reset allocator for current frame, then point command list to it
-    auto commandAllocator = commandAllocators[frameIndex];
-    commandAllocator->Reset();
-    commandList->Reset(commandAllocator.get(), nullptr);
-}
-
-void executeCommandList() {
-    // Close and dispatch command
-    commandList->Close();
-    ID3D12CommandList* commandLists[] = { commandList.get() };
-    commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
-}
-
-void waitGpu(bool forceWait = false) {
-    // Queue always signal increasing counter values
-    commandQueue->Signal(swapFence.get(), swapFenceCounter);
-    swapFenceWaitValue[frameIndex] = swapFenceCounter++;
-
-    // Wait if next frame not ready
-    int32_t nextFrameIndex = swapChain->GetCurrentBackBufferIndex();
-    if (swapFence->GetCompletedValue() < swapFenceWaitValue[nextFrameIndex] || forceWait) {
-        swapFence->SetEventOnCompletion(swapFenceWaitValue[nextFrameIndex], fenceEvent);
-        WaitForSingleObjectEx(fenceEvent, INFINITE, FALSE);
-    }
-    frameIndex = nextFrameIndex;
 }
 
 void draw() {
