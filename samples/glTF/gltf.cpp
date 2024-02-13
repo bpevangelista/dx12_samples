@@ -204,7 +204,7 @@ fastdx::ID3D12ResourcePtr createTextureBufferResource(const D3D12_RESOURCE_DESC&
     return resource;
 }
 
-fastdx::ID3D12ResourcePtr createBufferResource(void* dataPtr, int32_t sizeInBytes) {
+fastdx::ID3D12ResourcePtr createBufferResource(void* dataPtr, int32_t sizeInBytes, D3D12_RESOURCE_STATES bufferState) {
     // Create D3D12 resource used for CPU to GPU upload
     D3D12_RESOURCE_DESC bufferDesc = fastdxu::resourceBufferDesc(sizeInBytes);
     D3D12_HEAP_PROPERTIES uploadHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
@@ -217,7 +217,20 @@ fastdx::ID3D12ResourcePtr createBufferResource(void* dataPtr, int32_t sizeInByte
     std::memcpy(dataMapPtr, dataPtr, sizeInBytes);
     cpuToGpuResource->Unmap(0, nullptr);
 
-    return cpuToGpuResource;
+    // Create a read optimized GPU resource, copy from HEAP_UPLOAD to HEAP_DEFAULT resource
+    D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_DEFAULT };
+    fastdx::ID3D12ResourcePtr resource = device->createCommittedResource(defaultHeapProps,
+        D3D12_HEAP_FLAG_NONE, bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr);
+
+    // Issue GPU CopyResource command
+    commandList->CopyResource(resource.get(), cpuToGpuResource.get());
+
+    D3D12_RESOURCE_BARRIER transitionBarrier = fastdxu::resourceBarrierTransition(resource,
+        D3D12_RESOURCE_STATE_COPY_DEST, bufferState);
+    commandList->ResourceBarrier(1, &transitionBarrier);
+
+    uploadBuffers.push_back(cpuToGpuResource);
+    return resource;
 }
 
 void loadScene() {
@@ -226,7 +239,7 @@ void loadScene() {
     sceneGlobals.matVP = DirectX::XMMatrixIdentity();
 
     // Create constant buffer resource and its view for shader
-    constantBuffer = createBufferResource(&sceneGlobals, cbSizeInBytes);
+    constantBuffer = createBufferResource(&sceneGlobals, cbSizeInBytes, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 }
 
 void loadMeshes() {
@@ -316,8 +329,8 @@ void loadMeshes() {
     assert(vbBuffers.size() > 0 && ibBuffers.size() > 0);
     int32_t vbSizeInBytes = vbBuffersNumElements[0] * vbStrideInBytes;
     int32_t ibSizeInBytes = ibBuffersNumElements[0] * ibStrideInBytes;
-    vertexBuffer = createBufferResource(vbBuffers[0], vbSizeInBytes);
-    indexBuffer = createBufferResource(ibBuffers[0], ibSizeInBytes);
+    vertexBuffer = createBufferResource(vbBuffers[0], vbSizeInBytes, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+    indexBuffer = createBufferResource(ibBuffers[0], ibSizeInBytes, D3D12_RESOURCE_STATE_INDEX_BUFFER);
     indexBufferView = fastdxu::indexBufferView(indexBuffer->GetGPUVirtualAddress(),
         ibBuffersNumElements[0] * ibStrideInBytes, DXGI_FORMAT_R16_UINT);
 
