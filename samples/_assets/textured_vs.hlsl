@@ -19,6 +19,7 @@ struct Constants {
 
 struct a2v {
     float3 position;
+    float3 normal;
     float2 uv0;
 };
 
