@@ -263,6 +263,20 @@ void loadMaterials() {
 
 }
 
+void startCommandList() {
+    // Get and reset allocator for current frame, then point command list to it
+    auto commandAllocator = commandAllocators[frameIndex];
+    commandAllocator->Reset();
+    commandList->Reset(commandAllocator.get(), nullptr);
+}
+
+void executeCommandList() {
+    // Close and dispatch command
+    commandList->Close();
+    ID3D12CommandList* commandLists[] = { commandList.get() };
+    commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
+}
+
 void waitGpu(bool forceWait = false) {
     // Queue always signal increasing counter values
     commandQueue->Signal(swapFence.get(), swapFenceCounter);
@@ -286,10 +300,7 @@ void draw() {
     static D3D12_RESOURCE_BARRIER transitionBarrier = { D3D12_RESOURCE_BARRIER_TYPE_TRANSITION, D3D12_RESOURCE_BARRIER_FLAG_NONE,
         nullptr,  D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES };
 
-    // Get and reset allocator for current frame, then point command list to it
-    auto commandAllocator = commandAllocators[frameIndex];
-    commandAllocator->Reset();
-    commandList->Reset(commandAllocator.get(), nullptr);
+    startCommandList();
     {
         // Present->RenderTarget barrier
         transitionBarrier.Transition.pResource = renderTargets[frameIndex].get();
@@ -328,12 +339,7 @@ void draw() {
         transitionBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
         commandList->ResourceBarrier(1, &transitionBarrier);
     }
-    commandList->Close();
-
-    // Dispatch command list and present
-    ID3D12CommandList* commandLists[] = { commandList.get() };
-    commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
-    swapChain->Present(1, 0);
+    executeCommandList();
 
     waitGpu();
 }
