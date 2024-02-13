@@ -92,7 +92,7 @@ void initializeD3d(HWND hwnd) {
     shaderTexturesViewHeap = device->createDescriptorHeap(32, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     // Create a triple frame buffer swap chain for window
-    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = fastdx::defaultSwapChainDesc(hwnd, kFrameCount, kFrameFormat);
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = fastdxu::swapChainDesc(hwnd, kFrameCount, kFrameFormat);
     swapChain = device->createSwapChainForHwnd(commandQueue, swapChainDesc, hwnd);
 
     // Create swap chain render targets views in heap
@@ -100,7 +100,7 @@ void initializeD3d(HWND hwnd) {
 
     // Create depth stencil resource
     D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_DEFAULT };
-    D3D12_RESOURCE_DESC depthStencilResourceDesc = fastdx::defaultResourceTexDesc(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+    D3D12_RESOURCE_DESC depthStencilResourceDesc = fastdxu::resourceTexDesc(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
         swapChainDesc.Width, swapChainDesc.Height, 1, DXGI_FORMAT_D32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
     depthStencilTarget = device->createCommittedResource(defaultHeapProps, D3D12_HEAP_FLAG_NONE,
@@ -132,7 +132,7 @@ void initializeD3d(HWND hwnd) {
     pipelineRootSignature = device->createRootSignature(0, vertexShader.data(), vertexShader.size());
 
     // Create a pipeline state
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc = fastdx::defaultGraphicsPipelineDesc(kFrameFormat);
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc = fastdxu::defaultGraphicsPipelineDesc(kFrameFormat);
     pipelineDesc.pRootSignature = pipelineRootSignature.get();
     pipelineDesc.VS = { vertexShader.data(), vertexShader.size() };
     pipelineDesc.PS = { pixelShader.data(), pixelShader.size() };
@@ -141,7 +141,7 @@ void initializeD3d(HWND hwnd) {
 
 fastdx::ID3D12ResourcePtr createBufferResource(void* dataPtr, int32_t sizeInBytes) {
     // Create resource on D3D12_HEAP_TYPE_UPLOAD (ideally, copy to D3D12_HEAP_DEFAULT)
-    D3D12_RESOURCE_DESC bufferDesc = fastdx::defaultResourceBufferDesc(sizeInBytes);
+    D3D12_RESOURCE_DESC bufferDesc = fastdxu::resourceBufferDesc(sizeInBytes);
     D3D12_HEAP_PROPERTIES uploadHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
     fastdx::ID3D12ResourcePtr resource = device->createCommittedResource(uploadHeapProps, D3D12_HEAP_FLAG_NONE, bufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);
@@ -248,7 +248,7 @@ void loadMeshes() {
     assert(vbBuffers.size() > 0 && ibBuffers.size() > 0);
     vertexBuffer = createBufferResource(vbBuffers[0], vbBuffersNumElements[0] * vbStrideInBytes);
     indexBuffer = createBufferResource(ibBuffers[0], ibBuffersNumElements[0] * ibStrideInBytes);
-    indexBufferView = fastdx::defaultIndexBufferView(indexBuffer->GetGPUVirtualAddress(),
+    indexBufferView = fastdxu::indexBufferView(indexBuffer->GetGPUVirtualAddress(),
         ibBuffersNumElements[0] * ibStrideInBytes, DXGI_FORMAT_R16_UINT);
 
     for (uint8_t* vbDataPtr : vbBuffers) {

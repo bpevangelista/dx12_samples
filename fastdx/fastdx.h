@@ -15,7 +15,7 @@
 
 
 ///
-/// Header
+/// fastdx Header - D3D12 Lightweight Wrapper for Quick Prototyping
 ///
 namespace fastdx {
     class D3D12DeviceWrapper;
@@ -109,29 +109,32 @@ namespace fastdx {
     private:
         ID3D12DevicePtr _device;
     };
+}
 
-
-    ///
-    /// D3D12 Utilities
-    ///
+///
+/// fastdxu Header - D3D12 Utilities
+///
+namespace fastdxu {
     D3D12_BLEND_DESC defaultBlendDesc();
 
     D3D12_DEPTH_STENCIL_DESC defaultDepthStencilDesc();
 
-    D3D12_INDEX_BUFFER_VIEW defaultIndexBufferView(D3D12_GPU_VIRTUAL_ADDRESS BufferLocation, UINT SizeInBytes,
+    D3D12_INDEX_BUFFER_VIEW indexBufferView(D3D12_GPU_VIRTUAL_ADDRESS BufferLocation, UINT SizeInBytes,
         DXGI_FORMAT Format = DXGI_FORMAT_R16_UINT);
 
     D3D12_RASTERIZER_DESC defaultRasterizerDesc();
 
-    D3D12_RESOURCE_DESC defaultResourceTexDesc(D3D12_RESOURCE_DIMENSION dimension, uint32_t width,
-        uint32_t height, uint16_t depth, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags);
+    D3D12_RESOURCE_BARRIER resourceBarrierTransition(fastdx::ID3D12ResourcePtr resource, D3D12_RESOURCE_STATES beforeState, D3D12_RESOURCE_STATES afterState);
 
-    D3D12_RESOURCE_DESC defaultResourceBufferDesc(uint32_t width,
+    D3D12_RESOURCE_DESC resourceBufferDesc(uint32_t width,
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
 
-    D3D12_SHADER_RESOURCE_VIEW_DESC defaultShaderResourceViewDesc(D3D12_SRV_DIMENSION dimension);
+    D3D12_RESOURCE_DESC resourceTexDesc(D3D12_RESOURCE_DIMENSION dimension, uint32_t width,
+        uint32_t height, uint16_t depth, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags);
 
-    DXGI_SWAP_CHAIN_DESC1 defaultSwapChainDesc(const HWND hwnd, uint32_t bufferCount = 2,
+    D3D12_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc(D3D12_SRV_DIMENSION dimension);
+
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc(const HWND hwnd, uint32_t bufferCount = 2,
         DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM);
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC defaultGraphicsPipelineDesc(DXGI_FORMAT renderTargetFormat);
@@ -566,7 +569,7 @@ namespace fastdx {
 ///
 /// INLINED D3D12 Utilities
 ///
-namespace fastdx {
+namespace fastdxu {
 
     struct DEFAULT_D3D12_BLEND_DESC : public D3D12_BLEND_DESC {
         DEFAULT_D3D12_BLEND_DESC() {
@@ -607,16 +610,6 @@ namespace fastdx {
     inline D3D12_DEPTH_STENCIL_DESC defaultDepthStencilDesc() { return DEFAULT_D3D12_DEPTH_STENCIL_DESC(); }
 
 
-    inline D3D12_INDEX_BUFFER_VIEW defaultIndexBufferView(
-        D3D12_GPU_VIRTUAL_ADDRESS BufferLocation, UINT SizeInBytes, DXGI_FORMAT Format) {
-        return D3D12_INDEX_BUFFER_VIEW{
-            BufferLocation,
-            SizeInBytes,
-            Format
-        };
-    }
-
-
     struct DEFAULT_D3D12_RASTERIZER_DESC : public D3D12_RASTERIZER_DESC {
         DEFAULT_D3D12_RASTERIZER_DESC() {
             FillMode = D3D12_FILL_MODE_SOLID;
@@ -635,24 +628,54 @@ namespace fastdx {
     inline D3D12_RASTERIZER_DESC defaultRasterizerDesc() { return DEFAULT_D3D12_RASTERIZER_DESC(); }
 
 
-    inline D3D12_RESOURCE_DESC defaultResourceTexDesc(D3D12_RESOURCE_DIMENSION dimension, uint32_t width,
-        uint32_t height, uint16_t depth, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags) {
-        return D3D12_RESOURCE_DESC {
-            dimension,
-            0,                                      // 4MB for MSAA, 64KB otherwise
-            static_cast<uint64_t>(width),
-            height,
-            depth,
-            0,                                      // Mips from 0 to N
-            format,
-            {1, 0},
-            D3D12_TEXTURE_LAYOUT_UNKNOWN,
-            flags,
+    struct DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC :
+        public D3D12_GRAPHICS_PIPELINE_STATE_DESC {
+        DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC(
+            DXGI_FORMAT renderTargetFormat) {
+            memset(this, 0, sizeof(*this));
+            BlendState = fastdxu::defaultBlendDesc();
+            SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
+            RasterizerState = fastdxu::defaultRasterizerDesc();
+            DepthStencilState = fastdxu::defaultDepthStencilDesc();
+            PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+            NumRenderTargets = 1;
+            RTVFormats[0] = renderTargetFormat;
+            DSVFormat = DXGI_FORMAT_D32_FLOAT;
+            SampleDesc = DXGI_SAMPLE_DESC{ 1, 0 };
+            Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+        }
+    };
+    inline D3D12_GRAPHICS_PIPELINE_STATE_DESC defaultGraphicsPipelineDesc(DXGI_FORMAT renderTargetFormat) {
+        return DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC(renderTargetFormat);
+    }
+
+
+    inline D3D12_INDEX_BUFFER_VIEW indexBufferView(
+        D3D12_GPU_VIRTUAL_ADDRESS BufferLocation, UINT SizeInBytes, DXGI_FORMAT Format) {
+        return D3D12_INDEX_BUFFER_VIEW{
+            BufferLocation,
+            SizeInBytes,
+            Format
         };
     }
 
 
-    inline D3D12_RESOURCE_DESC defaultResourceBufferDesc(uint32_t width, D3D12_RESOURCE_FLAGS flags) {
+    inline D3D12_RESOURCE_BARRIER resourceBarrierTransition(fastdx::ID3D12ResourcePtr resource,
+        D3D12_RESOURCE_STATES beforeState = D3D12_RESOURCE_STATE_COMMON,
+        D3D12_RESOURCE_STATES afterState = D3D12_RESOURCE_STATE_COMMON) {
+
+        return D3D12_RESOURCE_BARRIER{
+            D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+            D3D12_RESOURCE_BARRIER_FLAG_NONE,
+            // Transition
+            resource.get(),
+            D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+            beforeState,
+            afterState
+        };
+    }
+
+    inline D3D12_RESOURCE_DESC resourceBufferDesc(uint32_t width, D3D12_RESOURCE_FLAGS flags) {
         return D3D12_RESOURCE_DESC{
             D3D12_RESOURCE_DIMENSION_BUFFER,
             0,                                      // 64KB alignment
@@ -668,15 +691,33 @@ namespace fastdx {
     }
 
 
+    inline D3D12_RESOURCE_DESC resourceTexDesc(D3D12_RESOURCE_DIMENSION dimension, uint32_t width,
+        uint32_t height, uint16_t depth, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags) {
+        return D3D12_RESOURCE_DESC{
+            dimension,
+            0,                                      // 4MB for MSAA, 64KB otherwise
+            static_cast<uint64_t>(width),
+            height,
+            depth,
+            0,                                      // Mips from 0 to N
+            format,
+            {1, 0},
+            D3D12_TEXTURE_LAYOUT_UNKNOWN,
+            flags,
+        };
+    }
+
+
     struct DEFAULT_D3D12_SHADER_RESOURCE_VIEW_DESC : public D3D12_SHADER_RESOURCE_VIEW_DESC {
-        DEFAULT_D3D12_SHADER_RESOURCE_VIEW_DESC(D3D12_SRV_DIMENSION dimension) {
+        DEFAULT_D3D12_SHADER_RESOURCE_VIEW_DESC(D3D12_SRV_DIMENSION dimension, DXGI_FORMAT format) {
             memset(this, 0, sizeof(D3D12_SHADER_RESOURCE_VIEW_DESC));
             ViewDimension = dimension;
+            Format = format;
             Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         }
     };
-    inline D3D12_SHADER_RESOURCE_VIEW_DESC defaultShaderResourceViewDesc(D3D12_SRV_DIMENSION dimension) {
-        return DEFAULT_D3D12_SHADER_RESOURCE_VIEW_DESC(dimension);
+    inline D3D12_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc(D3D12_SRV_DIMENSION dimension, DXGI_FORMAT format) {
+        return DEFAULT_D3D12_SHADER_RESOURCE_VIEW_DESC(dimension, format);
     }
 
 
@@ -697,29 +738,7 @@ namespace fastdx {
             Flags = 0;
         }
     };
-    inline DXGI_SWAP_CHAIN_DESC1 defaultSwapChainDesc(const HWND hwnd, uint32_t bufferCount, DXGI_FORMAT format) {
+    inline DXGI_SWAP_CHAIN_DESC1 swapChainDesc(const HWND hwnd, uint32_t bufferCount, DXGI_FORMAT format) {
         return DEFAULT_DXGI_SWAP_CHAIN_DESC1(hwnd, bufferCount, format);
-    }
-
-
-    struct DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC :
-        public D3D12_GRAPHICS_PIPELINE_STATE_DESC {
-        DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC(
-            DXGI_FORMAT renderTargetFormat) {
-            memset(this, 0, sizeof(*this));
-            BlendState = fastdx::defaultBlendDesc();
-            SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
-            RasterizerState = fastdx::defaultRasterizerDesc();
-            DepthStencilState = fastdx::defaultDepthStencilDesc();
-            PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-            NumRenderTargets = 1;
-            RTVFormats[0] = renderTargetFormat;
-            DSVFormat = DXGI_FORMAT_D32_FLOAT;
-            SampleDesc = DXGI_SAMPLE_DESC{ 1, 0 };
-            Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-        }
-    };
-    inline D3D12_GRAPHICS_PIPELINE_STATE_DESC defaultGraphicsPipelineDesc(DXGI_FORMAT renderTargetFormat) {
-        return DEFAULT_D3D12_GRAPHICS_PIPELINE_STATE_DESC(renderTargetFormat);
     }
 };
