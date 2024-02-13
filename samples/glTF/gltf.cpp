@@ -234,17 +234,21 @@ fastdx::ID3D12ResourcePtr createBufferResource(void* dataPtr, int32_t sizeInByte
 }
 
 void loadScene() {
+    DirectX::XMFLOAT3 eye(0.0f, 5.0f, -10.0f);
+    DirectX::XMFLOAT3 lookAt(0.0f, 0.0f, 0.0f);
+    DirectX::XMFLOAT3 upVec(0.0f, 1.0f, 0.0f);
+    auto matView = DirectX::XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&lookAt), XMLoadFloat3(&upVec));
+    auto matProj = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PI / 3.0f, windowProp.width / (float)windowProp.height, 0.1f, 1000.0f);
+
     uint32_t cbSizeInBytes = sizeof(sceneGlobals);
     sceneGlobals.matW = DirectX::XMMatrixIdentity();
-    sceneGlobals.matVP = DirectX::XMMatrixIdentity();
+    sceneGlobals.matVP = DirectX::XMMatrixTranspose(matView * matProj); // HLSL expects column-major
 
     // Create constant buffer resource and its view for shader
     constantBuffer = createBufferResource(&sceneGlobals, cbSizeInBytes, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 }
 
 void loadMeshes() {
-    readModel(L"Cube.gltf", &gltfCubeModel);
-
     std::vector<const tinygltf::Mesh*> meshes;
     for (const auto &scene : gltfCubeModel.scenes) {
         for (auto sceneNodeId : scene.nodes) {
@@ -439,6 +443,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     };
     initializeD3d(hwnd);
 
+    readModel(L"Cube.gltf", &gltfCubeModel);
     startCommandList();
     {
         loadMeshes();
