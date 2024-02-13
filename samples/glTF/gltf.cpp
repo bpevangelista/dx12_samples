@@ -169,6 +169,41 @@ void waitGpu(bool forceWait = false) {
     frameIndex = nextFrameIndex;
 }
 
+fastdx::ID3D12ResourcePtr createTextureBufferResource(const D3D12_RESOURCE_DESC& textureDesc, void* dataPtr, int32_t rowSizeInBytes, int32_t sizeInBytes) {
+    // Intermediate buffer with HEAP_TYPE_UPLOAD CPU->GPU
+    D3D12_HEAP_PROPERTIES uploadHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
+    fastdx::ID3D12ResourcePtr cpuToGpuResource = device->createCommittedResource(uploadHeapProps,
+        D3D12_HEAP_FLAG_NONE, fastdxu::resourceBufferDesc(sizeInBytes), D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);
+
+    // Map and Upload data
+    uint8_t* dataMapPtr = nullptr;
+    cpuToGpuResource->Map(0, nullptr, reinterpret_cast<void**>(&dataMapPtr));
+    std::memcpy(dataMapPtr, dataPtr, sizeInBytes);
+    cpuToGpuResource->Unmap(0, nullptr);
+
+    // Final GPU-read optimized buffer. Dispatch COPY command, HEAP_UPLOAD -> HEAP_DEFAULT
+    D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_DEFAULT };
+    fastdx::ID3D12ResourcePtr resource = device->createCommittedResource(defaultHeapProps,
+        D3D12_HEAP_FLAG_NONE, textureDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr);
+
+    // Issue GPU CopyTextureRegion command
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT resourceFootprint;
+    device->d3dDevice()->GetCopyableFootprints(&textureDesc, 0, 1, 0, &resourceFootprint, nullptr, nullptr, nullptr);
+
+    uint32_t subresourceIndex = 0;
+    D3D12_TEXTURE_COPY_LOCATION srcRegion = { cpuToGpuResource.get(), D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT, resourceFootprint };
+    D3D12_TEXTURE_COPY_LOCATION dstRegion = { resource.get(), D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX, subresourceIndex };
+    commandList->CopyTextureRegion(&dstRegion, 0, 0, 0, &srcRegion, nullptr);
+
+    // Transition Barrier
+    D3D12_RESOURCE_BARRIER transitionBarrier = fastdxu::resourceBarrierTransition(resource,
+        D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    commandList->ResourceBarrier(1, &transitionBarrier);
+
+    uploadBuffers.push_back(cpuToGpuResource);
+    return resource;
+}
+
 fastdx::ID3D12ResourcePtr createBufferResource(void* dataPtr, int32_t sizeInBytes) {
     // Create D3D12 resource used for CPU to GPU upload
     D3D12_RESOURCE_DESC bufferDesc = fastdxu::resourceBufferDesc(sizeInBytes);
