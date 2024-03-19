@@ -47,7 +47,7 @@ namespace fastdx {
     /// Window helpers
     ///
     HWND createWindow(const WindowProperties& properties, HRESULT* outResult = nullptr);
-    int runMainLoop(std::function<void(double)> updateFunction = nullptr,
+    int runMainLoop(std::function<void(float)> updateFunction = nullptr,
         std::function<void()> drawFunction = nullptr);
 
 
@@ -257,10 +257,10 @@ namespace fastdx {
     }
 
 
-    int runMainLoop(std::function<void(double)> updateFunction, std::function<void()> drawFunction) {
+    int runMainLoop(std::function<void(float)> updateFunction, std::function<void()> drawFunction) {
         MSG msg = {};
-        const double kDesiredUpdateTimeMs = 1.0 / 60.0;
-        double remainingElapsedTimeMs = 0.0;
+        const float kDesiredUpdateTimeMs = 1.0f / 60.0f;
+        float remainingElapsedTimeMs = 0.0;
 
         while (msg.message != WM_QUIT) {
             if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -271,13 +271,13 @@ namespace fastdx {
             static high_resolution_clock::time_point lastClockTime = high_resolution_clock::now();
             high_resolution_clock::time_point currentClockTime = high_resolution_clock::now();
 
-            double elapsedTimeMs = duration<double, std::milli>(currentClockTime - lastClockTime).count();
+            float elapsedTimeMs = duration<float, std::milli>(currentClockTime - lastClockTime).count();
             elapsedTimeMs += remainingElapsedTimeMs;
             lastClockTime = currentClockTime;
 
             if (updateFunction) {
                 int updateCycles = (int)(elapsedTimeMs / kDesiredUpdateTimeMs);
-                remainingElapsedTimeMs = max(0.0, elapsedTimeMs - updateCycles * kDesiredUpdateTimeMs);
+                remainingElapsedTimeMs = max(0.0f, elapsedTimeMs - updateCycles * kDesiredUpdateTimeMs);
 
                 for (int32_t i = 0; i < updateCycles; ++i) {
                     updateFunction(kDesiredUpdateTimeMs);
