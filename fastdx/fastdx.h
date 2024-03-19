@@ -39,6 +39,10 @@ namespace fastdx {
         int32_t showMode = SW_SHOW;
         WCHAR title[64] = L"fastdx";
         bool isFullScreen = false;
+
+        float aspectRatio() const {
+            return width / static_cast<float>(height);
+        }
     };
     inline std::function<void()> onWindowDestroy = nullptr;
 

@@ -24,7 +24,7 @@ fastdx::ID3D12RootSignaturePtr pipelineRootSignature;
 vector<fastdx::ID3D12ResourcePtr> renderTargets;
 fastdx::ID3D12ResourcePtr depthStencilTarget;
 vector<uint8_t> vertexShader, pixelShader;
-fastdx::ID3D12ResourcePtr sceneConstantBuffer;
+fastdx::ID3D12ResourcePtr sceneConstantBuffer[kFrameCount];
 std::vector<fastdx::ID3D12ResourcePtr> uploadBuffers;
 
 // Frame Sync
@@ -251,19 +251,21 @@ fastdx::ID3D12ResourcePtr createBufferResource(const void* dataPtr, int32_t size
 }
 
 void createSceneConstantBuffer() {
-    DirectX::XMFLOAT3 eye(0.0f, 5.0f, -10.0f);
+    DirectX::XMFLOAT3 eye(0.0f, 5.0f, 10.0f);
     DirectX::XMFLOAT3 lookAt(0.0f, 0.0f, 0.0f);
     DirectX::XMFLOAT3 upVec(0.0f, 1.0f, 0.0f);
     auto matView = DirectX::XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&lookAt), XMLoadFloat3(&upVec));
-    auto matProj = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PI / 3.0f, windowProp.width / (float)windowProp.height, 0.1f, 1000.0f);
+    auto matProj = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PI / 3.0f, windowProp.aspectRatio(), 0.1f, 1000.0f);
 
     uint32_t cbSizeInBytes = sizeof(sceneGlobals);
     sceneGlobals.matW = DirectX::XMMatrixIdentity();
     sceneGlobals.matVP = DirectX::XMMatrixTranspose(matView * matProj); // HLSL expects column-major
 
     // Create constant buffer resource and its view for shader
-    sceneConstantBuffer = createBufferResource(&sceneGlobals, cbSizeInBytes,
-        D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_HEAP_TYPE_UPLOAD);
+    for (int i = 0; i < kFrameCount; ++i) {
+        sceneConstantBuffer[i] = createBufferResource(&sceneGlobals, cbSizeInBytes,
+            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_HEAP_TYPE_UPLOAD);
+    }
 }
 
 /// Return one VB/IB pair for each mesh part of each mesh
@@ -414,7 +416,7 @@ void loadGltfModelMaterials(const tinygltf::Model& gltfModel,
         for (int32_t i=0; i <_countof(textureIds); ++i) {
             int32_t textureId = textureIds[i];
 
-            assert(textureId != -1, "Missing required texture");
+            assert(textureId != -1 || !"Our shader require all material textures!");
             if (textureId == -1) {
                 // TODO Gracefully handle with default albedo and normal textures
                 continue;
@@ -441,13 +443,13 @@ void loadGltfModelMaterials(const tinygltf::Model& gltfModel,
 
 void update(float elapsedTimeSec) {
     static float angleY = 0.0f;
-    angleY += elapsedTimeSec * 0.001f;
+    angleY -= elapsedTimeSec * 0.001f;
     sceneGlobals.matW = DirectX::XMMatrixRotationY(angleY);
 
     uint8_t* dataMapPtr = nullptr;
-    sceneConstantBuffer->Map(0, nullptr, reinterpret_cast<void**>(&dataMapPtr));
+    sceneConstantBuffer[frameIndex]->Map(0, nullptr, reinterpret_cast<void**>(&dataMapPtr));
     memcpy(dataMapPtr, &sceneGlobals, sizeof(sceneGlobals));
-    sceneConstantBuffer->Unmap(0, nullptr);
+    sceneConstantBuffer[frameIndex]->Unmap(0, nullptr);
 }
 
 void draw() {
@@ -481,7 +483,7 @@ void draw() {
 
         commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         commandList->SetGraphicsRootSignature(pipelineRootSignature.get());
-        commandList->SetGraphicsRootConstantBufferView(0, sceneConstantBuffer->GetGPUVirtualAddress());
+        commandList->SetGraphicsRootConstantBufferView(0, sceneConstantBuffer[frameIndex]->GetGPUVirtualAddress());
 
         // Draw all mesh parts
         ID3D12DescriptorHeap* shaderTexturesHeaps[] = { gltfTexturesViewHeap.get() };
