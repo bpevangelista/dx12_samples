@@ -49,7 +49,7 @@ void initializeD3d(HWND hwnd) {
     commandQueue = device->createCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
 
     // Create a triple frame buffer swap chain for window
-    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = fastdx::defaultSwapChainDesc(hwnd, kFrameCount, kFrameFormat);
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = fastdxu::swapChainDesc(hwnd, kFrameCount, kFrameFormat);
     swapChain = device->createSwapChainForHwnd(commandQueue, swapChainDesc, hwnd);
 
     // Create a heap of descriptors, then them fill with swap chain render targets desc
@@ -58,7 +58,7 @@ void initializeD3d(HWND hwnd) {
 
     // Create depth stencil resource
     D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_DEFAULT };
-    D3D12_RESOURCE_DESC depthStencilResourceDesc = fastdx::defaultResourceTexDesc(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+    D3D12_RESOURCE_DESC depthStencilResourceDesc = fastdxu::resourceTexDesc(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
         swapChainDesc.Width, swapChainDesc.Height, 1, DXGI_FORMAT_D32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
     depthStencilTarget = device->createCommittedResource(defaultHeapProps, D3D12_HEAP_FLAG_NONE,
@@ -92,7 +92,7 @@ void initializeD3d(HWND hwnd) {
     pipelineRootSignature = device->createRootSignature(0, vertexShader.data(), vertexShader.size());
 
     // Create a pipeline state
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc = fastdx::defaultGraphicsPipelineDesc(kFrameFormat);
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc = fastdxu::defaultGraphicsPipelineDesc(kFrameFormat);
     pipelineDesc.pRootSignature = pipelineRootSignature.get();
     pipelineDesc.VS = { vertexShader.data(), vertexShader.size() };
     pipelineDesc.PS = { pixelShader.data(), pixelShader.size() };
@@ -108,7 +108,7 @@ void createTriangle() {
     };
 
     // Create resource on D3D12_HEAP_TYPE_UPLOAD (ideally, copy to D3D12_HEAP_DEFAULT)
-    D3D12_RESOURCE_DESC vertexBufferDesc = fastdx::defaultResourceBufferDesc(sizeof(triangleVertices));
+    D3D12_RESOURCE_DESC vertexBufferDesc = fastdxu::resourceBufferDesc(sizeof(triangleVertices));
     D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
     vertexBuffer = device->createCommittedResource(defaultHeapProps, D3D12_HEAP_FLAG_NONE, vertexBufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);

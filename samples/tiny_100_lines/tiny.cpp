@@ -24,7 +24,7 @@ void initializeD3d(HWND hwnd) {
     commandQueue = device->createCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
 
     // Create a triple frame buffer swap chain for window
-    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = fastdx::defaultSwapChainDesc(hwnd, kFrameCount, kFrameFormat);
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = fastdxu::swapChainDesc(hwnd, kFrameCount, kFrameFormat);
     swapChain = device->createSwapChainForHwnd(commandQueue, swapChainDesc, hwnd);
 
     // Create a heap of descriptors, then them fill with swap chain render targets desc
