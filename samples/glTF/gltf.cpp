@@ -1,9 +1,10 @@
 #define FASTDX_IMPLEMENTATION
 #include "../../fastdx/fastdx.h"
-#include "tiny_gltf.h"
+#include "tiny_gltf/tiny_gltf.h"
 #include <DirectXMath.h>
 #include <filesystem>
 #include <fstream>
+using namespace std;
 
 const int32_t kFrameCount = 3;
 const DXGI_FORMAT kFrameFormat = DXGI_FORMAT_R10G10B10A2_UNORM;
@@ -18,33 +19,37 @@ fastdx::ID3D12GraphicsCommandListPtr commandList;
 fastdx::IDXGISwapChainPtr swapChain;
 fastdx::ID3D12DescriptorHeapPtr swapChainRtvHeap;
 fastdx::ID3D12DescriptorHeapPtr depthStencilViewHeap;
-fastdx::ID3D12DescriptorHeapPtr texturesViewHeap;
 fastdx::ID3D12PipelineStatePtr pipelineState;
 fastdx::ID3D12RootSignaturePtr pipelineRootSignature;
-std::vector<fastdx::ID3D12ResourcePtr> renderTargets;
+vector<fastdx::ID3D12ResourcePtr> renderTargets;
 fastdx::ID3D12ResourcePtr depthStencilTarget;
-std::vector<uint8_t> vertexShader, pixelShader;
-fastdx::ID3D12ResourcePtr vertexBuffer, indexBuffer, constantBuffer;
-std::vector<fastdx::ID3D12ResourcePtr> textureBuffers;
+vector<uint8_t> vertexShader, pixelShader;
+fastdx::ID3D12ResourcePtr sceneConstantBuffer;
 std::vector<fastdx::ID3D12ResourcePtr> uploadBuffers;
-D3D12_INDEX_BUFFER_VIEW indexBufferView;
 
+// Frame Sync
 int32_t frameIndex = 0;
 HANDLE fenceEvent;
 fastdx::ID3D12FencePtr swapFence;
 uint64_t swapFenceCounter = 0;
 uint64_t swapFenceWaitValue[kFrameCount] = {};
 
+// GlTF Model
+vector<fastdx::ID3D12ResourcePtr> gltfVertexBuffers, gltfIndexBuffers;
+vector<D3D12_INDEX_BUFFER_VIEW> gltfIndexBuffersView;
+vector<vector<fastdx::ID3D12ResourcePtr>> gltfMaterialToTextures;
+vector<D3D12_GPU_DESCRIPTOR_HANDLE> gltfTextureDescriptorsHeapStart;
+fastdx::ID3D12DescriptorHeapPtr gltfTexturesViewHeap;
+
+// Scene Constant Buffer
 struct SceneGlobals { // On x64 we can guarantee 16B alignment
     DirectX::XMMATRIX matW;
     DirectX::XMMATRIX matVP;
 };
-
-tinygltf::Model gltfCubeModel;
 SceneGlobals sceneGlobals = {};
 
 
-void memcpyToInterleaved(uint8_t* dest, size_t destStrideInBytes, uint8_t* src, size_t srcStrideInBytes, size_t srcSizeInBytes) {
+void memcpyToInterleaved(uint8_t* dest, size_t destStrideInBytes, const uint8_t* src, size_t srcStrideInBytes, size_t srcSizeInBytes) {
     assert(srcSizeInBytes % srcStrideInBytes == 0);
     while (srcSizeInBytes > 0) {
         memcpy(dest, src, srcStrideInBytes);
@@ -54,16 +59,15 @@ void memcpyToInterleaved(uint8_t* dest, size_t destStrideInBytes, uint8_t* src, 
     }
 }
 
-std::wstring getPathInModule(const std::wstring& filePath) {
+wstring getPathInModule(const wstring& filePath) {
     WCHAR modulePathBuffer[2048];
     GetModuleFileName(nullptr, modulePathBuffer, _countof(modulePathBuffer));
-    return std::filesystem::path(modulePathBuffer).parent_path() / filePath;
+    return filesystem::path(modulePathBuffer).parent_path() / filePath;
 }
 
-bool readModel(const std::wstring& filePath, tinygltf::Model* outModel) {
+bool readGltfModel(const wstring& filePath, tinygltf::Model* outModel) {
     tinygltf::TinyGLTF loader;
-
-    std::wstring warn, err;
+    wstring warn, err;
     bool isLoaded = loader.LoadASCIIFromFile(outModel, &err, &warn, getPathInModule(filePath));
     if (!warn.empty() || !err.empty()) {
         OutputDebugString(warn.c_str());
@@ -72,11 +76,11 @@ bool readModel(const std::wstring& filePath, tinygltf::Model* outModel) {
     return isLoaded;
 }
 
-HRESULT readShader(const std::wstring& filePath, std::vector<uint8_t>& outShaderData) {
+HRESULT readShader(const wstring& filePath, vector<uint8_t>& outShaderData) {
     auto fullFilePath = getPathInModule(filePath);
-    std::ifstream file(fullFilePath, std::ios::binary);
+    ifstream file(fullFilePath, ios::binary);
     if (file) {
-        std::uintmax_t fileSize = std::filesystem::file_size(fullFilePath);
+        uintmax_t fileSize = filesystem::file_size(fullFilePath);
         outShaderData.resize(fileSize);
         file.read(reinterpret_cast<char*>(outShaderData.data()), fileSize);
     }
@@ -91,7 +95,6 @@ void initializeD3d(HWND hwnd) {
     // Create heaps for render target views, depth stencil and shader parameters
     swapChainRtvHeap = device->createDescriptorHeap(kFrameCount, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     depthStencilViewHeap = device->createDescriptorHeap(1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-    texturesViewHeap = device->createDescriptorHeap(32, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     // Create a triple frame buffer swap chain for window
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = fastdxu::swapChainDesc(hwnd, kFrameCount, kFrameFormat);
@@ -169,7 +172,9 @@ void waitGpu(bool forceWait = false) {
     frameIndex = nextFrameIndex;
 }
 
-fastdx::ID3D12ResourcePtr createTextureBufferResource(const D3D12_RESOURCE_DESC& textureDesc, void* dataPtr, int32_t rowSizeInBytes, int32_t sizeInBytes) {
+fastdx::ID3D12ResourcePtr createTextureBufferResource(const D3D12_RESOURCE_DESC& textureDesc, const void* dataPtr,
+    int32_t rowSizeInBytes, int32_t sizeInBytes) {
+
     // Intermediate buffer with HEAP_TYPE_UPLOAD CPU->GPU
     D3D12_HEAP_PROPERTIES uploadHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
     fastdx::ID3D12ResourcePtr cpuToGpuResource = device->createCommittedResource(uploadHeapProps,
@@ -178,7 +183,7 @@ fastdx::ID3D12ResourcePtr createTextureBufferResource(const D3D12_RESOURCE_DESC&
     // Map and Upload data
     uint8_t* dataMapPtr = nullptr;
     cpuToGpuResource->Map(0, nullptr, reinterpret_cast<void**>(&dataMapPtr));
-    std::memcpy(dataMapPtr, dataPtr, sizeInBytes);
+    memcpy(dataMapPtr, dataPtr, sizeInBytes);
     cpuToGpuResource->Unmap(0, nullptr);
 
     // Final GPU-read optimized buffer. Dispatch COPY command, HEAP_UPLOAD -> HEAP_DEFAULT
@@ -204,7 +209,9 @@ fastdx::ID3D12ResourcePtr createTextureBufferResource(const D3D12_RESOURCE_DESC&
     return resource;
 }
 
-fastdx::ID3D12ResourcePtr createBufferResource(void* dataPtr, int32_t sizeInBytes, D3D12_RESOURCE_STATES bufferState) {
+// TODO Allow non-GPU upload
+fastdx::ID3D12ResourcePtr createBufferResource(const void* dataPtr, int32_t sizeInBytes, D3D12_RESOURCE_STATES bufferState,
+    D3D12_HEAP_TYPE heapType) {
     // Create D3D12 resource used for CPU to GPU upload
     D3D12_RESOURCE_DESC bufferDesc = fastdxu::resourceBufferDesc(sizeInBytes);
     D3D12_HEAP_PROPERTIES uploadHeapProps = { D3D12_HEAP_TYPE_UPLOAD };
@@ -214,26 +221,36 @@ fastdx::ID3D12ResourcePtr createBufferResource(void* dataPtr, int32_t sizeInByte
     // Map and Upload data
     uint8_t* dataMapPtr = nullptr;
     cpuToGpuResource->Map(0, nullptr, reinterpret_cast<void**>(&dataMapPtr));
-    std::memcpy(dataMapPtr, dataPtr, sizeInBytes);
+    memcpy(dataMapPtr, dataPtr, sizeInBytes);
     cpuToGpuResource->Unmap(0, nullptr);
 
-    // Create a read optimized GPU resource, copy from HEAP_UPLOAD to HEAP_DEFAULT resource
-    D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_DEFAULT };
-    fastdx::ID3D12ResourcePtr resource = device->createCommittedResource(defaultHeapProps,
-        D3D12_HEAP_FLAG_NONE, bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr);
+    // CPU/GPU Managed Heap
+    if (heapType == D3D12_HEAP_TYPE_UPLOAD) {
+        return cpuToGpuResource;
+    // GPU-Only Optimized Heap
+    } else if (heapType == D3D12_HEAP_TYPE_DEFAULT) {
+        // Create a read optimized GPU resource, copy from HEAP_UPLOAD to HEAP_DEFAULT resource
+        D3D12_HEAP_PROPERTIES defaultHeapProps = { D3D12_HEAP_TYPE_DEFAULT };
+        fastdx::ID3D12ResourcePtr resource = device->createCommittedResource(defaultHeapProps,
+            D3D12_HEAP_FLAG_NONE, bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr);
 
-    // Issue GPU CopyResource command
-    commandList->CopyResource(resource.get(), cpuToGpuResource.get());
+        // Issue GPU CopyResource command
+        commandList->CopyResource(resource.get(), cpuToGpuResource.get());
 
-    D3D12_RESOURCE_BARRIER transitionBarrier = fastdxu::resourceBarrierTransition(resource,
-        D3D12_RESOURCE_STATE_COPY_DEST, bufferState);
-    commandList->ResourceBarrier(1, &transitionBarrier);
+        D3D12_RESOURCE_BARRIER transitionBarrier = fastdxu::resourceBarrierTransition(resource,
+            D3D12_RESOURCE_STATE_COPY_DEST, bufferState);
+        commandList->ResourceBarrier(1, &transitionBarrier);
 
-    uploadBuffers.push_back(cpuToGpuResource);
-    return resource;
+        uploadBuffers.push_back(cpuToGpuResource);
+        return resource;
+    }
+    // Not supported
+    else {
+        return nullptr;
+    }
 }
 
-void loadScene() {
+void createSceneConstantBuffer() {
     DirectX::XMFLOAT3 eye(0.0f, 5.0f, -10.0f);
     DirectX::XMFLOAT3 lookAt(0.0f, 0.0f, 0.0f);
     DirectX::XMFLOAT3 upVec(0.0f, 1.0f, 0.0f);
@@ -245,33 +262,33 @@ void loadScene() {
     sceneGlobals.matVP = DirectX::XMMatrixTranspose(matView * matProj); // HLSL expects column-major
 
     // Create constant buffer resource and its view for shader
-    constantBuffer = createBufferResource(&sceneGlobals, cbSizeInBytes, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+    sceneConstantBuffer = createBufferResource(&sceneGlobals, cbSizeInBytes,
+        D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_HEAP_TYPE_UPLOAD);
 }
 
-void loadMeshes() {
-    std::vector<const tinygltf::Mesh*> meshes;
-    for (const auto &scene : gltfCubeModel.scenes) {
+/// Return one VB/IB pair for each mesh part of each mesh
+void loadGltfModelMeshes(const tinygltf::Model& gltfModel, vector<fastdx::ID3D12ResourcePtr>& outVertexBuffers,
+    vector<fastdx::ID3D12ResourcePtr>& outIndexBuffers, vector<D3D12_INDEX_BUFFER_VIEW>& outIndexBuffersView) {
+
+    vector<const tinygltf::Mesh*> meshes;
+    for (const auto &scene : gltfModel.scenes) {
         for (auto sceneNodeId : scene.nodes) {
-            const auto &modelNode = gltfCubeModel.nodes[sceneNodeId];
+            const auto &modelNode = gltfModel.nodes[sceneNodeId];
 
             if (modelNode.mesh >= 0) {
                 auto modelMeshId = modelNode.mesh;
-                const auto& modelMesh = gltfCubeModel.meshes[modelMeshId];
+                const auto& modelMesh = gltfModel.meshes[modelMeshId];
                 meshes.push_back(&modelMesh);
             }
         }
     }
 
-    std::vector<uint8_t*> vbBuffers;
-    std::vector<int32_t> vbBuffersNumElements;
     // Vertex Buffers (XYZ, NxNyNz, UV) - Optionally, 16B align with pad
     int32_t vbStrideInBytes = (3 + 3 + 2) * sizeof(float);
-
-    std::vector<uint8_t*> ibBuffers;
-    std::vector<int32_t> ibBuffersNumElements;
     int32_t ibStrideInBytes = sizeof(uint16_t);
 
     for (const auto* mesh : meshes) {
+        // Each meshParh must have a VB/IB pair
         for (auto meshPart : mesh->primitives) {
             uint8_t* vbDataPtr = nullptr;
             int32_t vbNumElements = 0;
@@ -282,11 +299,11 @@ void loadMeshes() {
                     continue;
                 }
 
-                auto attribAccessor = gltfCubeModel.accessors[attrib.second];
+                auto attribAccessor = gltfModel.accessors[attrib.second];
                 assert(attribAccessor.byteOffset == 0);
 
-                auto attribBufferView = gltfCubeModel.bufferViews[attribAccessor.bufferView];
-                uint8_t* attribDataPtr = gltfCubeModel.buffers[attribBufferView.buffer].data.data() +
+                auto attribBufferView = gltfModel.bufferViews[attribAccessor.bufferView];
+                const uint8_t* attribDataPtr = gltfModel.buffers[attribBufferView.buffer].data.data() +
                     attribBufferView.byteOffset;
 
                 // Create buffer on first attribute, then make sure they all have the same count
@@ -311,54 +328,49 @@ void loadMeshes() {
                 memcpyToInterleaved(vbCopyToPtr, vbStrideInBytes, attribDataPtr, attribStrideInBytes, attribBufferView.byteLength);
             }
 
-            auto indexAccessor = gltfCubeModel.accessors[meshPart.indices];
-            auto bufferView = gltfCubeModel.bufferViews[indexAccessor.bufferView];
-            uint8_t* indexDataPtr = gltfCubeModel.buffers[bufferView.buffer].data.data() + bufferView.byteOffset;
+            auto indexAccessor = gltfModel.accessors[meshPart.indices];
+            auto bufferView = gltfModel.bufferViews[indexAccessor.bufferView];
+            const uint8_t* indexDataPtr = gltfModel.buffers[bufferView.buffer].data.data() + bufferView.byteOffset;
 
             int32_t ibStrideInBytes = indexAccessor.ByteStride(bufferView);
             assert(ibStrideInBytes == sizeof(uint16_t));
             int32_t ibNumElements = static_cast<int32_t>(indexAccessor.count);
             uint8_t* ibDataPtr = (uint8_t*)malloc(ibNumElements * ibStrideInBytes);
-
             memcpy(ibDataPtr, indexDataPtr, ibNumElements * ibStrideInBytes);
 
-            ibBuffers.push_back(ibDataPtr);
-            ibBuffersNumElements.push_back(ibNumElements);
-            vbBuffers.push_back(vbDataPtr);
-            vbBuffersNumElements.push_back(vbNumElements);
+            int32_t vbSizeInBytes = vbNumElements * vbStrideInBytes;
+            int32_t ibSizeInBytes = ibNumElements * ibStrideInBytes;
+            auto vertexBuffer = createBufferResource(vbDataPtr, vbSizeInBytes,
+                D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_HEAP_TYPE_DEFAULT);
+            auto indexBuffer = createBufferResource(ibDataPtr, ibSizeInBytes, D3D12_RESOURCE_STATE_INDEX_BUFFER,
+                D3D12_HEAP_TYPE_DEFAULT);
+            auto indexBufferView = fastdxu::indexBufferView(indexBuffer->GetGPUVirtualAddress(),
+                ibNumElements * ibStrideInBytes, DXGI_FORMAT_R16_UINT);
+
+            SAFE_FREE(vbDataPtr);
+            SAFE_FREE(ibDataPtr);
+
+            outVertexBuffers.push_back(vertexBuffer);
+            outIndexBuffers.push_back(indexBuffer);
+            outIndexBuffersView.push_back(indexBufferView);
         }
-    }
-
-    // Must have at least one meshPart with vertex and index buffer
-    assert(vbBuffers.size() > 0 && ibBuffers.size() > 0);
-    int32_t vbSizeInBytes = vbBuffersNumElements[0] * vbStrideInBytes;
-    int32_t ibSizeInBytes = ibBuffersNumElements[0] * ibStrideInBytes;
-    vertexBuffer = createBufferResource(vbBuffers[0], vbSizeInBytes, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-    indexBuffer = createBufferResource(ibBuffers[0], ibSizeInBytes, D3D12_RESOURCE_STATE_INDEX_BUFFER);
-    indexBufferView = fastdxu::indexBufferView(indexBuffer->GetGPUVirtualAddress(),
-        ibBuffersNumElements[0] * ibStrideInBytes, DXGI_FORMAT_R16_UINT);
-
-    for (uint8_t* vbDataPtr : vbBuffers) {
-        SAFE_FREE(vbDataPtr);
-    }
-    for (uint8_t* ibDataPtr : ibBuffers) {
-        SAFE_FREE(ibDataPtr);
     }
 }
 
-void loadMaterials() {
-    for (const auto& texture : gltfCubeModel.samplers) {
-        // Handle Samplers
-    }
+void loadGltfModelMaterials(const tinygltf::Model& gltfModel,
+    vector<vector<fastdx::ID3D12ResourcePtr>>& outMaterialToTextures,
+    vector<D3D12_GPU_DESCRIPTOR_HANDLE>& outTextureDescriptorsHeapStart,
+    fastdx::ID3D12DescriptorHeapPtr* outTexturesViewHeap) {
 
-    D3D12_CPU_DESCRIPTOR_HANDLE texturesHandle = texturesViewHeap->GetCPUDescriptorHandleForHeapStart();
-    size_t heapDescriptorSize = device->getDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    map<int32_t, pair<D3D12_RESOURCE_DESC, fastdx::ID3D12ResourcePtr>> imageIdToTexture;
+    vector<pair<D3D12_RESOURCE_DESC, fastdx::ID3D12ResourcePtr>> textureIdToTexture;
 
-    std::map<int32_t, fastdx::ID3D12ResourcePtr> imagesMap;
-    for (const auto& texture : gltfCubeModel.textures) {
+    for (int32_t textureId = 0; textureId < gltfModel.textures.size(); ++textureId) {
+        const auto& texture = gltfModel.textures[textureId];
         int32_t imageId = texture.source;
-        if (imagesMap.find(imageId) == imagesMap.end()) {
-            tinygltf::Image& image = gltfCubeModel.images[imageId];
+
+        if (imageIdToTexture.find(imageId) == imageIdToTexture.end()) {
+            const tinygltf::Image& image = gltfModel.images[imageId];
             assert(image.bits == 8);
             assert(image.component == 3 || image.component == 4); // R8G8B8 or R8G8B8A8
 
@@ -366,21 +378,65 @@ void loadMaterials() {
             auto imageDesc = fastdxu::resourceTexDesc(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
                 image.width, image.height, 1, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_NONE);
 
-            void* imageDataPtr = &image.image[0];
+            const void* imageDataPtr = &image.image[0];
             int32_t rowSizeInBytes = image.width * image.component;
             int32_t imageSizeInBytes = rowSizeInBytes * image.height;
             auto imageBuffer = createTextureBufferResource(imageDesc, imageDataPtr, rowSizeInBytes, imageSizeInBytes);
-            textureBuffers.push_back(imageBuffer);
-
-            // Create texture view descriptor
-            D3D12_SHADER_RESOURCE_VIEW_DESC imageViewDesc = fastdxu::shaderResourceViewDesc(
-                D3D12_SRV_DIMENSION_TEXTURE2D, imageDesc.Format);
-            imageViewDesc.Texture2D.MipLevels = imageDesc.MipLevels + 1;
-
-            device->createShaderResourceView(imageBuffer, imageViewDesc, texturesHandle);
-            texturesHandle.ptr += heapDescriptorSize;
+            imageIdToTexture[imageId] = { imageDesc, imageBuffer };
         }
+
+        textureIdToTexture.push_back(imageIdToTexture[imageId]);
     }
+    imageIdToTexture.clear();
+
+    // Samplers - Not Implemented
+    for (const auto& sampler : gltfModel.samplers) {
+    }
+
+    int32_t descriptorsCount = ((gltfModel.materials.size() * 5) + 31) & ~31;
+    size_t descriptorSizeInBytes = device->getDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    fastdx::ID3D12DescriptorHeapPtr texturesViewHeap = device->createDescriptorHeap(
+        descriptorsCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    D3D12_CPU_DESCRIPTOR_HANDLE texturesCpuHandle = texturesViewHeap->GetCPUDescriptorHandleForHeapStart();
+    D3D12_GPU_DESCRIPTOR_HANDLE texturesGpuHandle = texturesViewHeap->GetGPUDescriptorHandleForHeapStart();
+
+    for (auto material : gltfModel.materials) {
+        int32_t textureIds[] = {
+            material.pbrMetallicRoughness.baseColorTexture.index
+            , material.pbrMetallicRoughness.metallicRoughnessTexture.index
+            //, material.normalTexture.index        // Not supported
+            //, material.emissiveTexture.index      // Not supported
+            //, material.occlusionTexture.index     // Not supported
+        };
+        outTextureDescriptorsHeapStart.push_back(texturesGpuHandle);
+
+        vector<fastdx::ID3D12ResourcePtr> texturesPtr;
+        for (int32_t i=0; i <_countof(textureIds); ++i) {
+            int32_t textureId = textureIds[i];
+
+            assert(textureId != -1, "Missing required texture");
+            if (textureId == -1) {
+                // TODO Gracefully handle with default albedo and normal textures
+                continue;
+            }
+
+            const auto& textureDescAndPtr = textureIdToTexture[textureId];
+            const D3D12_RESOURCE_DESC& textureDesc = textureDescAndPtr.first;
+            const fastdx::ID3D12ResourcePtr& texturePtr = textureDescAndPtr.second;
+
+            D3D12_SHADER_RESOURCE_VIEW_DESC imageViewDesc = fastdxu::shaderResourceViewDesc(
+                D3D12_SRV_DIMENSION_TEXTURE2D, textureDesc.Format);
+            imageViewDesc.Texture2D.MipLevels = textureDesc.MipLevels + 1;
+
+            device->createShaderResourceView(texturePtr, imageViewDesc, texturesCpuHandle);
+            texturesCpuHandle.ptr += descriptorSizeInBytes;
+            texturesGpuHandle.ptr += descriptorSizeInBytes;
+
+            texturesPtr.push_back(texturePtr);
+        }
+        outMaterialToTextures.push_back(std::move(texturesPtr));
+    }
+    *outTexturesViewHeap = texturesViewHeap;
 }
 
 void draw() {
@@ -412,18 +468,21 @@ void draw() {
         commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH,
             kClearDepth.DepthStencil.Depth, kClearDepth.DepthStencil.Stencil, 0, nullptr);
 
-        // Draw Mesh
         commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        commandList->IASetIndexBuffer(&indexBufferView);
         commandList->SetGraphicsRootSignature(pipelineRootSignature.get());
-        commandList->SetGraphicsRootConstantBufferView(0, constantBuffer->GetGPUVirtualAddress());
-        commandList->SetGraphicsRootShaderResourceView(1, vertexBuffer->GetGPUVirtualAddress());
+        commandList->SetGraphicsRootConstantBufferView(0, sceneConstantBuffer->GetGPUVirtualAddress());
 
-        // Textures must use descriptor table
-        ID3D12DescriptorHeap* shaderTexturesHeaps[] = { texturesViewHeap.get() };
+        // Draw all mesh parts
+        ID3D12DescriptorHeap* shaderTexturesHeaps[] = { gltfTexturesViewHeap.get() };
         commandList->SetDescriptorHeaps(1, shaderTexturesHeaps);
-        commandList->SetGraphicsRootDescriptorTable(2, texturesViewHeap->GetGPUDescriptorHandleForHeapStart());
-        commandList->DrawIndexedInstanced(indexBufferView.SizeInBytes / sizeof(uint16_t), 1, 0, 0, 0);
+        for (int i = 0; i < gltfIndexBuffers.size(); ++i) {
+            commandList->IASetIndexBuffer(&gltfIndexBuffersView[i]);
+            commandList->SetGraphicsRootShaderResourceView(1, gltfVertexBuffers[i]->GetGPUVirtualAddress());
+
+            // Textures must use descriptor table
+            commandList->SetGraphicsRootDescriptorTable(2, gltfTextureDescriptorsHeapStart[i]);
+            commandList->DrawIndexedInstanced(gltfIndexBuffersView[i].SizeInBytes / sizeof(uint16_t), 1, 0, 0, 0);
+        }
 
         // RenderTarget->Present barrier
         transitionBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -443,15 +502,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     };
     initializeD3d(hwnd);
 
-    readModel(L"Cube.gltf", &gltfCubeModel);
     startCommandList();
     {
-        loadMeshes();
-        loadMaterials();
-        loadScene();
+        tinygltf::Model gltfCubeModel;
+        readGltfModel(L"Cube.gltf", &gltfCubeModel);
+        loadGltfModelMeshes(gltfCubeModel, gltfVertexBuffers, gltfIndexBuffers, gltfIndexBuffersView);
+        loadGltfModelMaterials(gltfCubeModel, gltfMaterialToTextures, gltfTextureDescriptorsHeapStart, &gltfTexturesViewHeap);
+
+        createSceneConstantBuffer();
     }
     executeCommandList();
     waitGpu(true);
+    uploadBuffers.clear();
 
     return fastdx::runMainLoop(nullptr, draw);
 }

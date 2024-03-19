@@ -5,11 +5,22 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\fastdx\fastdx.h" />
-    <ClInclude Include="tiny_gltf.h" />
+    <ClInclude Include="tiny_gltf\json.hpp">
+      <Filter>tiny_gltf</Filter>
+    </ClInclude>
+    <ClInclude Include="tiny_gltf\stb_image.h">
+      <Filter>tiny_gltf</Filter>
+    </ClInclude>
+    <ClInclude Include="tiny_gltf\tiny_gltf.h">
+      <Filter>tiny_gltf</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="assets">
       <UniqueIdentifier>{0e1abddd-75d6-4c0f-8d6b-03b721dd16b6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tiny_gltf">
+      <UniqueIdentifier>{20e1b34c-29a7-4c6b-a0d7-bc2ed6f3e170}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

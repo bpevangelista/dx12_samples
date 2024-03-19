@@ -141,8 +141,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\fastdx\fastdx.h" />
-    <ClInclude Include="tiny_gltf.h" />
     <ClCompile Include="gltf.cpp" />
+    <ClInclude Include="tiny_gltf\json.hpp" />
+    <ClInclude Include="tiny_gltf\stb_image.h" />
+    <ClInclude Include="tiny_gltf\tiny_gltf.h" />
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="..\_assets\gltf\cube\Cube.bin" />
