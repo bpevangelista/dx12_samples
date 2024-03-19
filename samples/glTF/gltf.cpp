@@ -439,6 +439,17 @@ void loadGltfModelMaterials(const tinygltf::Model& gltfModel,
     *outTexturesViewHeap = texturesViewHeap;
 }
 
+void update(float elapsedTimeSec) {
+    static float angleY = 0.0f;
+    angleY += elapsedTimeSec * 0.001f;
+    sceneGlobals.matW = DirectX::XMMatrixRotationY(angleY);
+
+    uint8_t* dataMapPtr = nullptr;
+    sceneConstantBuffer->Map(0, nullptr, reinterpret_cast<void**>(&dataMapPtr));
+    memcpy(dataMapPtr, &sceneGlobals, sizeof(sceneGlobals));
+    sceneConstantBuffer->Unmap(0, nullptr);
+}
+
 void draw() {
     static D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = swapChainRtvHeap->GetCPUDescriptorHandleForHeapStart();
     static D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = depthStencilViewHeap->GetCPUDescriptorHandleForHeapStart();
@@ -515,5 +526,5 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     waitGpu(true);
     uploadBuffers.clear();
 
-    return fastdx::runMainLoop(nullptr, draw);
+    return fastdx::runMainLoop(update, draw);
 }
